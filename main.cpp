@@ -5,6 +5,7 @@
 #include <sstream>
 #include <vector>
 #include <bit>
+#include <unordered_map>
 
 #define st first
 #define nd second
@@ -85,70 +86,108 @@ struct Node{
     }
 };
 
-class CartesianTree {
-    private:
-    Node *last, *root;
-
-    void add_node(int x) {
-        Node* new_node = new Node(x);
-        if (root == NULL) {
-            root = new_node;
-            last = new_node;
-            return;
-        }
-        Node* current_node = last;
-        while (current_node != NULL and x < current_node->value) {
-            current_node = current_node -> parent;
-        }
-
-        if (current_node != NULL) {
-            new_node->left = current_node->right;
-            new_node->parent = current_node;
-            current_node->right = new_node;
-        } else {
-            new_node->left = root;
-            root->parent = new_node;
-            root = new_node;
-        }
-
-        last = new_node;
-    }
-
-    public:
-    CartesianTree(vector<int64_t> &values) {
-        last = NULL, root = NULL;
-        for (int64_t x: values) {
-            add_node(x);
-        }
-    }
-
-    int64_t query(size_t start, size_t end) {
-
-    }
-};
-
-
 class LinearSpaceRMQ {
     public:
-    LinearSpaceRMQ(vector<int64_t> input) {
-        block_size = bit_width(input.size()) / 4;
+    LinearSpaceRMQ(vector<int64_t> input) : data(input) {
+        block_size = bit_width(input.size()) / 4 + 1;
         int64_t block_min = INT64_MAX;
-        size_t block_idx = -1;
-        for (size_t i = 0; i < input.size(); i++) {
-            if (input[i] < block_min) {
-                block_min = input[i];
-                block_idx = i;
+        size_t block_idx = 0;
+        size_t j = 0;
+        vector<int64_t> tree_stack;
+        uint64_t tree_number = 1;
+        while (block_idx * block_size + j < input.size()) {
+            printf("Input: %d, block_idx: %d, block_size: %d\n", input.size(), block_idx, block_size);
+            while (j < block_size && block_idx * block_size + j < input.size()) {
+                size_t cur_idx = block_idx * block_size + j;
+                while (!tree_stack.empty() && tree_stack.back() > input[cur_idx]) {
+                    tree_stack.pop_back();
+                    tree_number <<= 1;
+                }
+                tree_stack.push_back(input[cur_idx]);
+                tree_number <<= 1;
+                tree_number++;
+
+                if (block_min > input[cur_idx]) {
+                    block_min = input[cur_idx];
+                    block_idx = cur_idx;
+                }
+                j++;
             }
-            if ((i + 1) % block_size == 0) {
-                blocks.push_back(make_pair(block_min, block_idx));
-                block_min = INT64_MAX;
-                block_idx = -1;
+            // padding for the last block's tree number
+            while (j++ < block_size) {
+                tree_number <<= 1;
             }
+
+            if (cartesian_trees.find(tree_number) == cartesian_trees.end()) {
+                cartesian_trees[tree_number] = vector<vector<size_t>>(block_size);
+                for (int start = 0; start < block_size; start++) {
+                    cartesian_trees[tree_number][start] = vector<size_t>(block_size);
+                    cartesian_trees[tree_number][start][start] = block_size * block_idx + start;
+                    for (int end = start + 1; end < block_size; end++) {
+                        size_t prev_min_idx = cartesian_trees[tree_number][start][end - 1];
+                        size_t cur_min_idx = block_size * block_idx + end;
+                        if (input[prev_min_idx] > input[cur_min_idx]) {
+                            cartesian_trees[tree_number][start][end] = cur_min_idx;
+                        } else {
+                            cartesian_trees[tree_number][start][end] = prev_min_idx;
+                        }
+                    }
+                }
+            }
+
+
+            block_tree_number.push_back(tree_number);
+
+            tree_number = 1;
+            tree_stack.clear();
+            
+            block_min = INT64_MAX;
+
+            j = 0;
+            block_idx++;
         }
-    } 
+        vector<int64_t> block_vals;
+        for (auto block: blocks) {
+            block_vals.push_back(input[block]);
+        }
+        sparse_table = new SparseTableRMQ(block_vals);
+    }
+
+    size_t query(size_t start, size_t end) {
+        size_t first_block = start / block_size;
+        size_t first_block_start = first_block * block_size + start % block_size;
+        size_t first_block_end = (first_block + 1) * block_size - 1;
+        size_t last_block = end / block_size; 
+        size_t last_block_start = last_block * block_size;
+        size_t last_block_end = last_block * block_size + end % block_size;
+        size_t first_full_block = first_block_start % block_size == 0 ? first_block : first_block + 1;
+        size_t last_full_block = last_block_end % block_size == 0 ? last_block - 1 : last_block;
+
+        size_t min_idx = sparse_table->query(first_full_block, last_full_block);
+        int64_t min_val = data[min_idx];
+
+        size_t left_partial_min_idx = cartesian_trees[block_tree_number[first_block]][first_block_start][first_block_end];
+        size_t right_partial_min_idx = cartesian_trees[block_tree_number[last_block]][last_block_start][last_block_end];
+
+        if (min_val > data[left_partial_min_idx]) {
+            min_idx = left_partial_min_idx;
+            min_val = data[left_partial_min_idx];
+        }
+
+        if (min_val > data[right_partial_min_idx]) {
+            min_idx = right_partial_min_idx;
+            min_val = data[right_partial_min_idx];
+        }
+
+        return min_idx;
+    }
     private:
     size_t block_size;
-    vector<pair<int64_t, size_t>> blocks;
+    vector<size_t> blocks;
+    unordered_map<uint64_t, vector<vector<size_t>>> cartesian_trees;
+    vector<uint64_t> block_tree_number;
+    vector<int64_t> data;
+    SparseTableRMQ *sparse_table;
 };
 
 
@@ -195,14 +234,13 @@ int main(int argc, char *argv[]) {
 
         NaiveRMQ *naive = new NaiveRMQ(input);
         SparseTableRMQ *sparse = new SparseTableRMQ(input);
-        // CartesianTreeRMQ *cartesian = new CartesianTreeRMQ(input);
+        LinearSpaceRMQ *linear = new LinearSpaceRMQ(input);
         vector<int64_t> v = {8, 2, 5, 1, 9, 11, 10, 20, 22, 4};
-        CartesianTree *tree = new CartesianTree(v);
 
-        // for (pair<int64_t, int64_t> q : query) {
-        //     printf("%ld\n", sparse->query(q.st, q.nd));
-        //     output_file << sparse->query(q.st, q.nd) << endl;
-        // }
+        for (pair<int64_t, int64_t> q : query) {
+            printf("%ld\n", linear->query(q.st, q.nd));
+            output_file << linear->query(q.st, q.nd) << endl;
+        }
     }
 
     input_file.close();
