@@ -42,14 +42,18 @@ class SparseTableRMQ {
     SparseTableRMQ(vector<int64_t> &input) : values(input) {
         size_t N = input.size();
         size_t logN = bit_width(N);
+        // for (int64_t x: input) {
+        //     printf("%lld\n", x);
+        // }
+        // printf("N:%d logN:%d\n", N, logN);
         table.resize(N);
         for (size_t i = 0; i < N; i++) {
             table[i].resize(logN);
             table[i][0] = i;
         }
-        for (size_t i = 0; i < N; i++) {
-            for (size_t j = 1; j < logN; j++) {
-                size_t offset = 1 << (j - 1);
+        for (size_t j = 1; j < logN; j++) {
+            for (size_t i = 0; i < N; i++) {
+                size_t offset = 1ull << (j - 1);
                 size_t right_index = min(N - 1, i + offset);
                 if (input[table[i][j - 1]] < input[table[right_index][j - 1]]) {
                     table[i][j] = table[i][j - 1];
@@ -57,14 +61,26 @@ class SparseTableRMQ {
                     table[i][j] = table[right_index][j - 1];
                 }
             }
-        }    
+        }
+        // for (size_t i=0; i < N; i++) {
+        //     for (size_t j = 0; j < logN; j++) {
+        //         printf("Start: %lld, level: %lld, table[%d][%d]: %lld\n", i, j, i,j, input[table[i][j]]);
+        //     }
+        // }
     }
 
     int64_t query(size_t start, size_t end) {
-        size_t level = bit_width(end - start) - 1;
-        size_t offset = 1 << level;
+        // printf("query\n");
+        if (start == end) {
+            return start;
+        }
+        size_t level = bit_width(end - start + 1) - 1;
+        size_t offset = level == 0 ? 0 : 1 << level;
+        // printf("Start:%d End:%d Level:%d Offset:%d\n", start, end, level, offset);
+        // printf("start: %d level: %d end - offset: %d, level: %d\n", start, level, end - offset, level);
         size_t left_rmq = table[start][level];
-        size_t right_rmq = table[end - offset][level];
+        size_t right_rmq = table[end - offset + 1][level];
+        // printf("left: %d, right: %d\n", left_rmq, right_rmq);
         return values[left_rmq] < values[right_rmq] ? left_rmq : right_rmq;
     }
 
@@ -234,12 +250,13 @@ int main(int argc, char *argv[]) {
 
         NaiveRMQ *naive = new NaiveRMQ(input);
         SparseTableRMQ *sparse = new SparseTableRMQ(input);
-        LinearSpaceRMQ *linear = new LinearSpaceRMQ(input);
+        // LinearSpaceRMQ *linear = new LinearSpaceRMQ(input);
         vector<int64_t> v = {8, 2, 5, 1, 9, 11, 10, 20, 22, 4};
 
         for (pair<int64_t, int64_t> q : query) {
-            printf("%ld\n", linear->query(q.st, q.nd));
-            output_file << linear->query(q.st, q.nd) << endl;
+            size_t result = output_path == "naive.txt" ? naive->query(q.st, q.nd) : sparse->query(q.st, q.nd);
+            // printf("%ld\n", result);
+            output_file << result << endl;
         }
     }
 
