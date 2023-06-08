@@ -72,6 +72,86 @@ class SparseTableRMQ {
     vector<vector<int64_t>> table;
 };
 
+struct Node{
+    int64_t value;
+    Node *left, *right;
+    Node *parent;
+
+    Node(int64_t x) {
+        value = x;
+        parent = NULL;
+        left = NULL;
+        right = NULL;
+    }
+};
+
+class CartesianTree {
+    private:
+    Node *last, *root;
+
+    void add_node(int x) {
+        Node* new_node = new Node(x);
+        if (root == NULL) {
+            root = new_node;
+            last = new_node;
+            return;
+        }
+        Node* current_node = last;
+        while (current_node != NULL and x < current_node->value) {
+            current_node = current_node -> parent;
+        }
+
+        if (current_node != NULL) {
+            new_node->left = current_node->right;
+            new_node->parent = current_node;
+            current_node->right = new_node;
+        } else {
+            new_node->left = root;
+            root->parent = new_node;
+            root = new_node;
+        }
+
+        last = new_node;
+    }
+
+    public:
+    CartesianTree(vector<int64_t> &values) {
+        last = NULL, root = NULL;
+        for (int64_t x: values) {
+            add_node(x);
+        }
+    }
+
+    int64_t query(size_t start, size_t end) {
+
+    }
+};
+
+
+class LinearSpaceRMQ {
+    public:
+    LinearSpaceRMQ(vector<int64_t> input) {
+        block_size = bit_width(input.size()) / 4;
+        int64_t block_min = INT64_MAX;
+        size_t block_idx = -1;
+        for (size_t i = 0; i < input.size(); i++) {
+            if (input[i] < block_min) {
+                block_min = input[i];
+                block_idx = i;
+            }
+            if ((i + 1) % block_size == 0) {
+                blocks.push_back(make_pair(block_min, block_idx));
+                block_min = INT64_MAX;
+                block_idx = -1;
+            }
+        }
+    } 
+    private:
+    size_t block_size;
+    vector<pair<int64_t, size_t>> blocks;
+};
+
+
 int main(int argc, char *argv[]) {
     string query_type = argv[1];
     string input_path = argv[2];
@@ -115,11 +195,14 @@ int main(int argc, char *argv[]) {
 
         NaiveRMQ *naive = new NaiveRMQ(input);
         SparseTableRMQ *sparse = new SparseTableRMQ(input);
+        // CartesianTreeRMQ *cartesian = new CartesianTreeRMQ(input);
+        vector<int64_t> v = {8, 2, 5, 1, 9, 11, 10, 20, 22, 4};
+        CartesianTree *tree = new CartesianTree(v);
 
-        for (pair<int64_t, int64_t> q : query) {
-            printf("%ld\n", sparse->query(q.st, q.nd));
-            output_file << sparse->query(q.st, q.nd) << endl;
-        }
+        // for (pair<int64_t, int64_t> q : query) {
+        //     printf("%ld\n", sparse->query(q.st, q.nd));
+        //     output_file << sparse->query(q.st, q.nd) << endl;
+        // }
     }
 
     input_file.close();
