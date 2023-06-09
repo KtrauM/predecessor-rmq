@@ -1,11 +1,11 @@
 #include <stdint.h>
 
+#include <bit>
 #include <fstream>
 #include <iostream>
 #include <sstream>
-#include <vector>
-#include <bit>
 #include <unordered_map>
+#include <vector>
 
 #define st first
 #define nd second
@@ -29,23 +29,17 @@ class NaiveRMQ {
             }
         }
     }
-    int64_t query(size_t start, size_t end) {
-        return table[start][end];
-    }
+    int64_t query(size_t start, size_t end) { return table[start][end]; }
 
    private:
     vector<vector<int64_t>> table;
 };
 
 class SparseTableRMQ {
-    public:
+   public:
     SparseTableRMQ(vector<int64_t> &input) : values(input) {
         size_t N = input.size();
         size_t logN = bit_width(N);
-        // for (int64_t x: input) {
-        //     printf("%lld\n", x);
-        // }
-        // printf("N:%d logN:%d\n", N, logN);
         table.resize(N);
         for (size_t i = 0; i < N; i++) {
             table[i].resize(logN);
@@ -62,29 +56,16 @@ class SparseTableRMQ {
                 }
             }
         }
-        // for (size_t j = 0; j < logN; j++) {
-        //     for (size_t i=0; i < N; i++) {
-        //         printf("Start: %lld, level: %lld, table[%d][%d] val: %lld idx: %d\n", i, j, i,j, input[table[i][j]], table[i][j]);
-        //     }
-        // }
     }
 
     int64_t query(size_t start, size_t end) {
-        // printf("Sparse query %d %d\n",start, end);
         if (start == end) {
             return start;
         }
         size_t level = bit_width(end - start + 1) - 1;
         size_t offset = level == 0 ? 0 : 1 << level;
-        // printf("Start:%d End:%d Level:%d Offset:%d\n", start, end, level, offset);
-        // printf("start: %d level: %d end - offset: %d, level: %d\n", start, level, end - offset, level);
-        // for(auto x: values) {
-        //     printf("%lld ",x);
-        // }
-        // printf("table: %d \n",table.size());
         size_t left_rmq = table[start][level];
         size_t right_rmq = table[end - offset + 1][level];
-        // printf("left: %d, right: %d\n", left_rmq, right_rmq);
         return values[left_rmq] <= values[right_rmq] ? left_rmq : right_rmq;
     }
 
@@ -93,24 +74,10 @@ class SparseTableRMQ {
     vector<vector<int64_t>> table;
 };
 
-struct Node{
-    int64_t value;
-    Node *left, *right;
-    Node *parent;
-
-    Node(int64_t x) {
-        value = x;
-        parent = NULL;
-        left = NULL;
-        right = NULL;
-    }
-};
-
 class LinearSpaceRMQ {
-    public:
+   public:
     LinearSpaceRMQ(vector<int64_t> input) : data(input) {
         block_size = bit_width(input.size()) / 4 + 1;
-        // printf("block size: %d\n", block_size);
         int64_t block_min = INT64_MAX;
         size_t block_min_idx = 0;
         size_t block_idx = 0;
@@ -118,7 +85,6 @@ class LinearSpaceRMQ {
         vector<int64_t> tree_stack;
         uint64_t tree_number = 1;
         while (block_idx * block_size + j < input.size()) {
-            // printf("Input: %d, block_idx: %d, block_size: %d\n", input.size(), block_idx, block_size);
             while (j < block_size && block_idx * block_size + j < input.size()) {
                 size_t cur_idx = block_idx * block_size + j;
                 while (!tree_stack.empty() && tree_stack.back() > input[cur_idx]) {
@@ -158,12 +124,11 @@ class LinearSpaceRMQ {
                 }
             }
 
-
             block_tree_number.push_back(tree_number);
             blocks.push_back(block_min_idx);
             tree_number = 1;
             tree_stack.clear();
-            
+
             block_min = INT64_MAX;
             block_min_idx = 0;
 
@@ -171,12 +136,9 @@ class LinearSpaceRMQ {
             block_idx++;
         }
         vector<int64_t> block_vals;
-        // printf("blocks\n");
-        for (auto block: blocks) {
+        for (size_t block : blocks) {
             block_vals.push_back(input[block]);
-            // printf("%d ", block);
         }
-        // printf("\n");
         sparse_table = new SparseTableRMQ(block_vals);
     }
 
@@ -185,45 +147,41 @@ class LinearSpaceRMQ {
         int32_t first_block_start = start % block_size;
         bool isEndWithinTheSameBlockAsStart = (first_block + 1) * block_size > end;
         int32_t first_block_end = isEndWithinTheSameBlockAsStart ? end % block_size : block_size - 1;
-        int32_t last_block = end / block_size; 
+        int32_t last_block = end / block_size;
         int32_t last_block_start = isEndWithinTheSameBlockAsStart ? end % block_size : 0;
         int32_t last_block_end = end % block_size;
-        int32_t first_full_block = first_block_start == 0 && !isEndWithinTheSameBlockAsStart ? first_block : first_block + 1;
+        int32_t first_full_block =
+            first_block_start == 0 && !isEndWithinTheSameBlockAsStart ? first_block : first_block + 1;
         int32_t last_full_block = last_block - 1;
-        // printf("Query: %d,%d\n", start, end);
-        // printf("Blocks: First %d - First Full:%d Last Full:%d Last:%d\n", first_block, first_full_block, last_full_block, last_block);
-        // printf("First start/end:%d %d Last start/end:%d %d\n",first_block_start, first_block_end, last_block_start, last_block_end);
-        size_t min_idx = first_full_block <= last_full_block ? blocks[sparse_table->query(first_full_block, last_full_block)] : -1;
+        size_t min_idx = first_full_block <= last_full_block
+                             ? blocks[sparse_table->query(first_full_block, last_full_block)]
+                             : -1;
         int64_t min_val = min_idx != -1 ? data[min_idx] : INT64_MAX;
 
-        // printf("Full blocks min and idx: %d %d\n", min_val, min_idx);
+        size_t left_partial_min_idx =
+            first_block * block_size +
+            cartesian_trees[block_tree_number[first_block]][first_block_start][first_block_end];
 
-        size_t left_partial_min_idx = first_block * block_size + cartesian_trees[block_tree_number[first_block]][first_block_start][first_block_end];
-        // printf("Left partial: %d\n", left_partial_min_idx);
-        // for (int i=0; i<cartesian_trees[block_tree_number[last_block]].size();i++){
-        //     for(int j=0;j<cartesian_trees[block_tree_number[last_block]][i].size(); j++) {
-        //         printf("i:%d j:%d val:%d\n", i,j,cartesian_trees[block_tree_number[last_block]][i][j]);
-        //     }
-        // }
-        // printf("\n");
-        size_t right_partial_min_idx = last_block * block_size + cartesian_trees[block_tree_number[last_block]][last_block_start][last_block_end];
-        // printf("Right partial: %d\n", right_partial_min_idx);
+        size_t right_partial_min_idx =
+            last_block * block_size +
+            cartesian_trees[block_tree_number[last_block]][last_block_start][last_block_end];
 
-        if (min_val > data[left_partial_min_idx] || 
-           (min_val == data[left_partial_min_idx] && min_idx > left_partial_min_idx)) {
+        if (min_val > data[left_partial_min_idx] ||
+            (min_val == data[left_partial_min_idx] && min_idx > left_partial_min_idx)) {
             min_idx = left_partial_min_idx;
             min_val = data[left_partial_min_idx];
-        } 
+        }
 
-        if (min_val > data[right_partial_min_idx] || 
-           (min_val == data[right_partial_min_idx] && min_idx > right_partial_min_idx)) {
+        if (min_val > data[right_partial_min_idx] ||
+            (min_val == data[right_partial_min_idx] && min_idx > right_partial_min_idx)) {
             min_idx = right_partial_min_idx;
             min_val = data[right_partial_min_idx];
         }
 
         return min_idx;
     }
-    private:
+
+   private:
     size_t block_size;
     vector<size_t> blocks;
     unordered_map<uint64_t, vector<vector<size_t>>> cartesian_trees;
@@ -231,7 +189,6 @@ class LinearSpaceRMQ {
     vector<int64_t> data;
     SparseTableRMQ *sparse_table;
 };
-
 
 int main(int argc, char *argv[]) {
     string query_type = argv[1];
@@ -280,9 +237,9 @@ int main(int argc, char *argv[]) {
         vector<int64_t> v = {8, 2, 5, 1, 9, 11, 10, 20, 22, 4};
 
         for (pair<int64_t, int64_t> q : query) {
-            size_t result = output_path == "naive.txt" ? naive->query(q.st, q.nd) : 
-                            (output_path == "sparse.txt" ? sparse->query(q.st, q.nd) : linear->query(q.st, q.nd));
-            // printf("%ld\n", result);
+            size_t result = output_path == "naive.txt" ? naive->query(q.st, q.nd)
+                                                       : (output_path == "sparse.txt" ? sparse->query(q.st, q.nd)
+                                                                                      : linear->query(q.st, q.nd));
             output_file << result << endl;
         }
     }
