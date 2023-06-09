@@ -55,37 +55,37 @@ class SparseTableRMQ {
             for (size_t i = 0; i < N; i++) {
                 size_t offset = 1ull << (j - 1);
                 size_t right_index = min(N - 1, i + offset);
-                if (input[table[i][j - 1]] < input[table[right_index][j - 1]]) {
+                if (input[table[i][j - 1]] <= input[table[right_index][j - 1]]) {
                     table[i][j] = table[i][j - 1];
                 } else {
                     table[i][j] = table[right_index][j - 1];
                 }
             }
         }
-        for (size_t i=0; i < N; i++) {
-            for (size_t j = 0; j < logN; j++) {
-                printf("Start: %lld, level: %lld, table[%d][%d]: %lld\n", i, j, i,j, input[table[i][j]]);
-            }
-        }
+        // for (size_t j = 0; j < logN; j++) {
+        //     for (size_t i=0; i < N; i++) {
+        //         printf("Start: %lld, level: %lld, table[%d][%d] val: %lld idx: %d\n", i, j, i,j, input[table[i][j]], table[i][j]);
+        //     }
+        // }
     }
 
     int64_t query(size_t start, size_t end) {
-        printf("Sparse query %d %d\n",start, end);
+        // printf("Sparse query %d %d\n",start, end);
         if (start == end) {
             return start;
         }
         size_t level = bit_width(end - start + 1) - 1;
         size_t offset = level == 0 ? 0 : 1 << level;
-        printf("Start:%d End:%d Level:%d Offset:%d\n", start, end, level, offset);
-        printf("start: %d level: %d end - offset: %d, level: %d\n", start, level, end - offset, level);
+        // printf("Start:%d End:%d Level:%d Offset:%d\n", start, end, level, offset);
+        // printf("start: %d level: %d end - offset: %d, level: %d\n", start, level, end - offset, level);
         // for(auto x: values) {
         //     printf("%lld ",x);
         // }
         // printf("table: %d \n",table.size());
         size_t left_rmq = table[start][level];
         size_t right_rmq = table[end - offset + 1][level];
-        printf("left: %d, right: %d\n", left_rmq, right_rmq);
-        return values[left_rmq] < values[right_rmq] ? left_rmq : right_rmq;
+        // printf("left: %d, right: %d\n", left_rmq, right_rmq);
+        return values[left_rmq] <= values[right_rmq] ? left_rmq : right_rmq;
     }
 
    private:
@@ -110,7 +110,7 @@ class LinearSpaceRMQ {
     public:
     LinearSpaceRMQ(vector<int64_t> input) : data(input) {
         block_size = bit_width(input.size()) / 4 + 1;
-        printf("block size: %d\n", block_size);
+        // printf("block size: %d\n", block_size);
         int64_t block_min = INT64_MAX;
         size_t block_min_idx = 0;
         size_t block_idx = 0;
@@ -174,6 +174,7 @@ class LinearSpaceRMQ {
         // printf("blocks\n");
         for (auto block: blocks) {
             block_vals.push_back(input[block]);
+            // printf("%d ", block);
         }
         // printf("\n");
         sparse_table = new SparseTableRMQ(block_vals);
@@ -182,22 +183,23 @@ class LinearSpaceRMQ {
     size_t query(size_t start, size_t end) {
         int32_t first_block = start / block_size;
         int32_t first_block_start = start % block_size;
-        int32_t first_block_end = (first_block + 1) * block_size > end ? end % block_size : block_size - 1;
+        bool isEndWithinTheSameBlockAsStart = (first_block + 1) * block_size > end;
+        int32_t first_block_end = isEndWithinTheSameBlockAsStart ? end % block_size : block_size - 1;
         int32_t last_block = end / block_size; 
-        int32_t last_block_start = (first_block + 1) * block_size > end ? end % block_size : 0;
+        int32_t last_block_start = isEndWithinTheSameBlockAsStart ? end % block_size : 0;
         int32_t last_block_end = end % block_size;
-        int32_t first_full_block = first_block_start == 0 ? first_block : first_block + 1;
-        int32_t last_full_block = last_block_end == 0 ? last_block - 1 : last_block;
-        printf("Query: %d,%d\n", start, end);
-        printf("Blocks: First %d - First Full:%d Last Full:%d Last:%d\n", first_block, first_full_block, last_full_block, last_block);
-        printf("First start/end:%d %d Last start/end:%d %d\n",first_block_start, first_block_end, last_block_start, last_block_end);
+        int32_t first_full_block = first_block_start == 0 && !isEndWithinTheSameBlockAsStart ? first_block : first_block + 1;
+        int32_t last_full_block = last_block - 1;
+        // printf("Query: %d,%d\n", start, end);
+        // printf("Blocks: First %d - First Full:%d Last Full:%d Last:%d\n", first_block, first_full_block, last_full_block, last_block);
+        // printf("First start/end:%d %d Last start/end:%d %d\n",first_block_start, first_block_end, last_block_start, last_block_end);
         size_t min_idx = first_full_block <= last_full_block ? blocks[sparse_table->query(first_full_block, last_full_block)] : -1;
         int64_t min_val = min_idx != -1 ? data[min_idx] : INT64_MAX;
 
-        printf("Full blocks min and idx: %d %d\n", min_val, min_idx);
+        // printf("Full blocks min and idx: %d %d\n", min_val, min_idx);
 
         size_t left_partial_min_idx = first_block * block_size + cartesian_trees[block_tree_number[first_block]][first_block_start][first_block_end];
-        printf("Left partial: %d\n", left_partial_min_idx);
+        // printf("Left partial: %d\n", left_partial_min_idx);
         // for (int i=0; i<cartesian_trees[block_tree_number[last_block]].size();i++){
         //     for(int j=0;j<cartesian_trees[block_tree_number[last_block]][i].size(); j++) {
         //         printf("i:%d j:%d val:%d\n", i,j,cartesian_trees[block_tree_number[last_block]][i][j]);
@@ -205,14 +207,16 @@ class LinearSpaceRMQ {
         // }
         // printf("\n");
         size_t right_partial_min_idx = last_block * block_size + cartesian_trees[block_tree_number[last_block]][last_block_start][last_block_end];
-        printf("Right partial: %d\n", right_partial_min_idx);
+        // printf("Right partial: %d\n", right_partial_min_idx);
 
-        if (min_val > data[left_partial_min_idx]) {
+        if (min_val > data[left_partial_min_idx] || 
+           (min_val == data[left_partial_min_idx] && min_idx > left_partial_min_idx)) {
             min_idx = left_partial_min_idx;
             min_val = data[left_partial_min_idx];
-        }
+        } 
 
-        if (min_val > data[right_partial_min_idx]) {
+        if (min_val > data[right_partial_min_idx] || 
+           (min_val == data[right_partial_min_idx] && min_idx > right_partial_min_idx)) {
             min_idx = right_partial_min_idx;
             min_val = data[right_partial_min_idx];
         }
