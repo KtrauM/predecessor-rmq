@@ -6,6 +6,7 @@
 #include <sstream>
 #include <unordered_map>
 #include <vector>
+#include <chrono>
 
 #define st first
 #define nd second
@@ -14,7 +15,7 @@ using namespace std;
 
 class NaiveRMQ {
    public:
-    NaiveRMQ(vector<int64_t> &input) {
+    NaiveRMQ(vector<uint64_t> &input) {
         size_t N = input.size();
         table.resize(N);
         for (size_t i = 0; i < N; i++) {
@@ -29,15 +30,15 @@ class NaiveRMQ {
             }
         }
     }
-    int64_t query(size_t start, size_t end) { return table[start][end]; }
+    size_t query(size_t start, size_t end) { return table[start][end]; }
 
    private:
-    vector<vector<int64_t>> table;
+    vector<vector<size_t>> table;
 };
 
 class SparseTableRMQ {
    public:
-    SparseTableRMQ(vector<int64_t> &input) : values(input) {
+    SparseTableRMQ(vector<uint64_t> &input) : values(input) {
         size_t N = input.size();
         size_t logN = bit_width(N);
         table.resize(N);
@@ -58,7 +59,7 @@ class SparseTableRMQ {
         }
     }
 
-    int64_t query(size_t start, size_t end) {
+    size_t query(size_t start, size_t end) {
         if (start == end) {
             return start;
         }
@@ -70,19 +71,19 @@ class SparseTableRMQ {
     }
 
    private:
-    vector<int64_t> values;
-    vector<vector<int64_t>> table;
+    vector<uint64_t> values;
+    vector<vector<size_t>> table;
 };
 
 class LinearSpaceRMQ {
    public:
-    LinearSpaceRMQ(vector<int64_t> input) : data(input) {
+    LinearSpaceRMQ(vector<uint64_t> input) : data(input) {
         block_size = bit_width(input.size()) / 4 + 1;
-        int64_t block_min = INT64_MAX;
+        uint64_t block_min = UINT64_MAX;
         size_t block_min_idx = 0;
         size_t block_idx = 0;
         size_t j = 0;
-        vector<int64_t> tree_stack;
+        vector<uint64_t> tree_stack;
         uint64_t tree_number = 1;
         while (block_idx * block_size + j < input.size()) {
             while (j < block_size && block_idx * block_size + j < input.size()) {
@@ -108,10 +109,10 @@ class LinearSpaceRMQ {
 
             if (cartesian_trees.find(tree_number) == cartesian_trees.end()) {
                 cartesian_trees[tree_number] = vector<vector<size_t>>(block_size);
-                for (int start = 0; start < block_size; start++) {
+                for (size_t start = 0; start < block_size; start++) {
                     cartesian_trees[tree_number][start] = vector<size_t>(block_size);
                     cartesian_trees[tree_number][start][start] = start;
-                    for (int end = start + 1; end < block_size; end++) {
+                    for (size_t end = start + 1; end < block_size; end++) {
                         size_t prev_min_idx = cartesian_trees[tree_number][start][end - 1];
                         size_t cur_min_idx = end;
                         size_t offset = block_size * block_idx;
@@ -129,13 +130,13 @@ class LinearSpaceRMQ {
             tree_number = 1;
             tree_stack.clear();
 
-            block_min = INT64_MAX;
+            block_min = UINT64_MAX;
             block_min_idx = 0;
 
             j = 0;
             block_idx++;
         }
-        vector<int64_t> block_vals;
+        vector<uint64_t> block_vals;
         for (size_t block : blocks) {
             block_vals.push_back(input[block]);
         }
@@ -186,7 +187,7 @@ class LinearSpaceRMQ {
     vector<size_t> blocks;
     unordered_map<uint64_t, vector<vector<size_t>>> cartesian_trees;
     vector<uint64_t> block_tree_number;
-    vector<int64_t> data;
+    vector<uint64_t> data;
     SparseTableRMQ *sparse_table;
 };
 
@@ -198,29 +199,28 @@ int main(int argc, char *argv[]) {
     ifstream input_file(input_path);
     ofstream output_file(output_path);
 
-    int64_t n;
+    size_t n;
     input_file >> n;
 
-    vector<int64_t> input(n);
-
+    vector<uint64_t> input(n);
     for (size_t i = 0; i < n; i++) {
         input_file >> input[i];
     }
 
     if (query_type == "pd") {
-        vector<pair<int64_t, int64_t>> query;
+        vector<pair<size_t, size_t>> query;
 
     } else if (query_type == "rmq") {
         string line;
         getline(input_file, line);  // Read the remaining newline character
 
-        vector<pair<int, int>> query;
-
+        vector<pair<size_t, size_t>> query;
+        vector<size_t> answers; 
         while (getline(input_file, line)) {
             stringstream ss(line);
             string token;
 
-            pair<int, int> q;
+            pair<size_t, size_t> q;
 
             getline(ss, token, ',');
             q.st = stoull(token);
@@ -231,22 +231,31 @@ int main(int argc, char *argv[]) {
             query.push_back(q);
         }
 
-        NaiveRMQ *naive = new NaiveRMQ(input);
-        SparseTableRMQ *sparse = new SparseTableRMQ(input);
+        auto start = std::chrono::high_resolution_clock::now();
+
+        // NaiveRMQ *naive = new NaiveRMQ(input);
+        // SparseTableRMQ *sparse = new SparseTableRMQ(input);
         LinearSpaceRMQ *linear = new LinearSpaceRMQ(input);
-        vector<int64_t> v = {8, 2, 5, 1, 9, 11, 10, 20, 22, 4};
 
         for (pair<int64_t, int64_t> q : query) {
-            size_t result = output_path == "naive.txt" ? naive->query(q.st, q.nd)
-                                                       : (output_path == "sparse.txt" ? sparse->query(q.st, q.nd)
-                                                                                      : linear->query(q.st, q.nd));
-            output_file << result << endl;
+            // size_t result = output_path == "naive.txt" ? naive->query(q.st, q.nd)
+            //                                            : (output_path == "sparse.txt" ? sparse->query(q.st, q.nd)
+            //                                                                           : linear->query(q.st, q.nd));
+            size_t result = linear->query(q.st, q.nd);
+            answers.push_back(result);
+        }
+
+        auto end = std::chrono::high_resolution_clock::now();
+        auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
+
+        printf("RESULT algo=%s namemurat_kurnaz time=%ld space=%ld\n", query_type.c_str(), duration, sizeof(linear));
+        
+        for (size_t ans: answers) {
+            output_file << ans << endl;
         }
     }
 
     input_file.close();
     output_file.close();
-    // printf("RESULT algo=%s name%s time=%d space=%d", query_type);
-
     return 0;
 }
