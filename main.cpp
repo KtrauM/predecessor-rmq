@@ -20,24 +20,44 @@ class BitVector {
     BitVector(vector<bool> &input) {
         size_t N = input.size();
         size_t logN = bit_width(N) - 1;
-        size_t s = logN / 2;
-        block.resize(N / s);
-        super_block.resize(N / (s * s));
-        for (int i = 0; i < super_block.size(); i++) {
+        size_t block_size = logN / 2;
+        size_t super_block_size = block_size * block_size;
+        block.resize(N / block_size);
+        block_number.resize(N / block_size);
+        super_block.resize(N / super_block_size);
+        size_t cur_block = 0;
+        size_t cur_super_block = 0;
+        for (int i = 0; i < N; i++) {
+            block_number[cur_block] += input[i];
+            block_number[cur_block] <<= 1;
             
+            if (input[i] == 0) {
+                block[cur_block]++;
+                super_block[cur_super_block]++;
+            }
+            
+            if ((i + 1) % block_size == 0) {
+                cur_block++;
+                block[cur_block] = block[cur_block - 1];
+            }
+            
+            if ((i + 1) % super_block_size == 0) {
+                cur_super_block++;
+                block[cur_block] = 0;
+            }
         }
     }
 
-    int rank(int x, int bit) {
-
+    uint32_t rank(uint64_t x, uint32_t bit) {
+        uint32_t zeroes = 0;
     }
 
     int select(int x, int bit) {
 
     }
     private: 
-    vector<int> block, super_block;
-    vector<vector<int>> lookup;
+    vector<uint32_t> block, block_number, super_block;
+    unordered_map<uint32_t, vector<uint32_t>> lookup;
 
 
 };
@@ -271,10 +291,10 @@ class LinearSpaceRMQ {
         int32_t first_full_block =
             first_block_start == 0 && !isEndWithinTheSameBlockAsStart ? first_block : first_block + 1;
         int32_t last_full_block = last_block - 1;
-        size_t min_idx = first_full_block <= last_full_block
+        int32_t min_idx = first_full_block <= last_full_block
                              ? blocks[sparse_table->query(first_full_block, last_full_block)]
                              : -1;
-        int64_t min_val = min_idx != -1 ? data[min_idx] : INT64_MAX;
+        uint64_t min_val = min_idx != -1 ? data[min_idx] : UINT64_MAX;
 
         size_t left_partial_min_idx =
             first_block * block_size +
@@ -349,7 +369,7 @@ int main(int argc, char *argv[]) {
         getline(input_file, line);  // Read the remaining newline character
 
         vector<pair<size_t, size_t>> query;
-        vector<size_t> answers; 
+        vector<int32_t> answers; 
         while (getline(input_file, line)) {
             stringstream ss(line);
             string token;
@@ -384,7 +404,8 @@ int main(int argc, char *argv[]) {
 
         printf("RESULT algo=%s name=murat_kurnaz time=%ld space=%ld\n", query_type.c_str(), duration, sizeof(linear));
         
-        for (size_t ans: answers) {
+        
+        for (int32_t ans: answers) {
             output_file << ans << endl;
         }
     }
