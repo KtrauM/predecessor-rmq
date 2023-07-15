@@ -20,23 +20,32 @@ class BitVector {
     BitVector(vector<bool> &input) {
         size_t N = input.size();
         size_t logN = bit_width(N) - 1;
-        size_t block_size = logN / 2;
-        size_t super_block_size = block_size * block_size;
+        block_size = logN / 2;
+        super_block_size = block_size * block_size;
+
         block.resize(N / block_size);
         block_number.resize(N / block_size);
         super_block.resize(N / super_block_size);
+        
+        vector<uint32_t> inblock;
+        uint32_t inblock_zeroes = 0;
         size_t cur_block = 0;
         size_t cur_super_block = 0;
         for (int i = 0; i < N; i++) {
             block_number[cur_block] += input[i];
             block_number[cur_block] <<= 1;
-            
+            inblock_zeroes += input[i] ? 1 : 0;
+            inblock.push_back(inblock_zeroes);
+
             if (input[i] == 0) {
                 block[cur_block]++;
                 super_block[cur_super_block]++;
             }
             
             if ((i + 1) % block_size == 0) {
+                lookup[block_number[cur_block]] = inblock;
+                inblock_zeroes = 0;
+                inblock.clear();
                 cur_block++;
                 block[cur_block] = block[cur_block - 1];
             }
@@ -48,14 +57,20 @@ class BitVector {
         }
     }
 
-    uint32_t rank(uint64_t x, uint32_t bit) {
-        uint32_t zeroes = 0;
+    uint32_t rank(uint32_t x, uint32_t bit) {
+        uint32_t super_idx = x / super_block_size;
+        uint32_t block_idx = x / block_size;
+        uint32_t block_offset = x % block_size;
+        uint32_t zeroes = super_block[super_idx] + block[block_idx] + lookup[block_number[block_idx]][block_offset];
+        return bit ? x - zeroes : zeroes;
     }
 
     int select(int x, int bit) {
-
+        
     }
-    private: 
+
+    private:
+    size_t block_size, super_block_size;
     vector<uint32_t> block, block_number, super_block;
     unordered_map<uint32_t, vector<uint32_t>> lookup;
 
