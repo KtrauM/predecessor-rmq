@@ -6,12 +6,129 @@
 #include <sstream>
 #include <unordered_map>
 #include <vector>
+#include <deque> 
 #include <chrono>
+#include <cmath>
 
 #define st first
 #define nd second
 
 using namespace std;
+
+class BitVector {
+    public:
+    BitVector(vector<bool> &input) {
+        size_t N = input.size();
+        size_t logN = bit_width(N) - 1;
+        size_t s = logN / 2;
+        block.resize(N / s);
+        super_block.resize(N / (s * s));
+        for (int i = 0; i < super_block.size(); i++) {
+            
+        }
+    }
+
+    int rank(int x, int bit) {
+
+    }
+
+    int select(int x, int bit) {
+
+    }
+    private: 
+    vector<int> block, super_block;
+    vector<vector<int>> lookup;
+
+
+};
+
+class NaiveBitVector {
+    public:
+    NaiveBitVector(vector<bool> &input) : v(input) {}
+    
+    uint64_t rank(uint64_t x, uint64_t bit) {
+        uint64_t cnt = 0;
+        for (uint64_t i = 0; i < x; i++) {
+            if (!v[i]) {
+                cnt++;
+            }
+        }
+        return !bit ? cnt : x - cnt;
+    }
+
+    uint64_t select(uint64_t x, uint64_t bit) {
+        uint64_t cnt = 0;
+        if (x == 0) {
+            return 0;
+        }
+        for (uint64_t i = 0; i < v.size(); i++) {
+            if (v[i] == bit) {
+                cnt++;
+            }
+            if (cnt == x) {
+                return i;
+            }
+        }
+        return v.size() - 1;
+    }
+    private:
+    vector<bool> v;
+};
+
+class EliasFano {
+    public:
+    EliasFano(vector<uint64_t> &input) {
+        size_t N = input.size();
+        uint64_t U = input[N - 1];
+        size_t upper_size = ceil(log2(N));
+        lower_size = ceil(log2(U) - log2(N));
+
+        lower_mask = (1 << lower_size) - 1;
+        upper_mask = ((1 << (upper_size + lower_size)) - 1) ^ lower_mask;
+
+        vector<bool> upper_bits;
+        uint64_t current_bucket = 0;
+        for (size_t i = 0; i < N; i++) {
+            uint64_t upper_part = (input[i] & upper_mask) >> lower_size;
+            while (current_bucket != upper_part) {
+                upper_bits.push_back(false);
+                current_bucket++;
+            }
+            upper_bits.push_back(true);
+            lower.push_back(input[i] & lower_mask);
+        }
+        upper_bits.resize(2 * N);
+        upper = new NaiveBitVector(upper_bits);
+    }
+
+    uint64_t access(int64_t index) {
+        uint64_t upper_bits = upper->select(index + 1, 1) - index;
+        return (upper_bits << lower_size) + lower[index];
+    }
+
+    uint64_t predecessor(uint64_t x) {
+        uint64_t upper_x = (x & upper_mask) >> lower_size;
+        uint64_t lower_x = x & lower_mask;
+        int64_t start = upper_x ? upper->select(upper_x, 0) - upper_x + 1 : 0;
+        int64_t end = upper->select(upper_x + 1, 0) - upper_x;
+        for (int64_t i = end; i >= start; i--) {
+            uint64_t candidate = access(i);
+            if (candidate <= x) {
+                return candidate;
+            }
+        }
+        if (start > 0) {
+            return access(start - 1);
+        }
+        return UINT64_MAX;
+    }
+
+    private:
+    uint64_t lower_size, lower_mask, upper_mask;
+    vector<uint64_t> lower;
+    NaiveBitVector *upper;
+
+};
 
 class NaiveRMQ {
    public:
@@ -208,7 +325,24 @@ int main(int argc, char *argv[]) {
     }
 
     if (query_type == "pd") {
-        vector<pair<size_t, size_t>> query;
+        vector<uint64_t> query;
+        vector<uint64_t> answers;
+        uint64_t q;
+        while(input_file >> q) {
+            query.push_back(q);
+        }
+
+        EliasFano *coding = new EliasFano(input);
+        for (uint64_t q: query) {
+            if (input_path == "access.txt") {
+                answers.push_back(coding->access(q));
+            } else {
+                answers.push_back(coding->predecessor(q));
+            }
+        }
+        for (int i = 0; i < answers.size(); i++) {
+            cout << query[i] << " " << answers[i] << endl;
+        }
 
     } else if (query_type == "rmq") {
         string line;
@@ -248,7 +382,7 @@ int main(int argc, char *argv[]) {
         auto end = std::chrono::high_resolution_clock::now();
         auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
 
-        printf("RESULT algo=%s namemurat_kurnaz time=%ld space=%ld\n", query_type.c_str(), duration, sizeof(linear));
+        printf("RESULT algo=%s name=murat_kurnaz time=%ld space=%ld\n", query_type.c_str(), duration, sizeof(linear));
         
         for (size_t ans: answers) {
             output_file << ans << endl;
