@@ -23,6 +23,9 @@ class BitVector {
     BitVector(vector<bool> &input) {
         uint64_t N = input.size();
         uint64_t logN = bit_width(N) - 1;
+        // RANK PREPROCESSING
+        // commented out because not needed
+         
         // block_size = logN / 2;
         // super_block_size = block_size * block_size;
 
@@ -61,6 +64,7 @@ class BitVector {
         //     }
         // }
 
+        // SELECT PREPROCESSING
         uint64_t chunk_zeroes = 0;
         chunk_target = logN * logN;
         chunk_starts.push_back(0);
@@ -143,13 +147,13 @@ class BitVector {
         }
     }
 
-    uint64_t rank(uint64_t x, uint64_t bit) {
-        uint64_t super_idx = x / super_block_size;
-        uint64_t block_idx = x / block_size;
-        uint64_t block_offset = x % block_size;
-        uint64_t zeroes = super_block[super_idx] + block[block_idx] + lookup[block_number[block_idx]][block_offset];
-        return bit ? x - zeroes : zeroes;
-    }
+    // uint64_t rank(uint64_t x, uint64_t bit) {
+    //     uint64_t super_idx = x / super_block_size;
+    //     uint64_t block_idx = x / block_size;
+    //     uint64_t block_offset = x % block_size;
+    //     uint64_t zeroes = super_block[super_idx] + block[block_idx] + lookup[block_number[block_idx]][block_offset];
+    //     return bit ? x - zeroes : zeroes;
+    // }
 
     uint64_t select(uint64_t x) {
         x--;
@@ -158,7 +162,6 @@ class BitVector {
         }
         uint64_t chunk_idx = x / chunk_target;
         uint64_t chunk_offset = x % chunk_target;
-        // cout << "Chunk idx: " << chunk_idx << " Chunk offset: " << chunk_offset << endl;
         // check if the chunk is sparse:
         if (sparse_lookup.find(chunk_idx) != sparse_lookup.end()) {
             return sparse_lookup[chunk_idx][chunk_offset];
@@ -202,7 +205,7 @@ class NaiveBitVector {
 
     uint64_t select(uint64_t x) {
         if (x > selects.size()) {
-            cout << "Query exceeds list\n";
+            // cout << "Query exceeds list\n";
             // throw invalid_argument("Query exceeds list");
             return v.size();
         }
@@ -220,19 +223,13 @@ class EliasFano {
         uint64_t U = input[N - 1];
         size_t upper_size = ceil(log2(N));
         lower_size = ceil(log2(U) - upper_size);
-        // cout << "Upper size " << upper_size << " lower size: " << lower_size << endl;
-        // printf("Lower size: %llu\n", lower_size);
+        
         lower_mask = (1ULL << lower_size) - 1;
         upper_mask = ((1ULL << (upper_size + lower_size)) - 1) ^ lower_mask;
         
         if (upper_size + lower_size == 64) {
             upper_mask = uint64_t(-1) ^ lower_mask;
         }
-
-        bitset<64> blow(lower_mask);
-        // cout << "lower_mask: " << blow << endl;
-        bitset<64> bupp(upper_mask);
-        // cout << "upper mask: " << bupp << endl;
 
         vector<bool> upper_bits, upper_bits_inv;
         uint64_t current_bucket = 0;
@@ -251,22 +248,7 @@ class EliasFano {
         for (bool b: upper_bits) {
             upper_bits_inv.push_back(!b);
         }
-
-        bitset<64> binary(lower_mask);
-        // cout << binary << '\n';
         
-        // cout << "Lower\n";
-        // for (size_t i = 0; i < lower.size(); i++) {
-        //     bitset<64> binary(lower[i]);
-        //     cout << binary << '\n';
-        // }
-        // cout << "Upper\n";
-        // for (size_t i = 0; i < upper_bits.size(); i++) {
-        //     cout << upper_bits[i];
-        // }
-        // cout<<"\nend\n";
-
-        // upper = new NaiveBitVector(upper_bits);
         // upper0 = new NaiveBitVector(upper_bits);
         // upper1 = new NaiveBitVector(upper_bits_inv);
         upper0 = new BitVector(upper_bits);
@@ -284,11 +266,8 @@ class EliasFano {
         uint64_t lower_x = x & lower_mask;
         int64_t start = upper_x ? upper0->select(upper_x) - upper_x + 1 : 0;
         int64_t end = upper0->select(upper_x + 1) - upper_x;
-        // cout << "x: " << x << ", Upper_x: " << upper_x << ", Start " << start << ", End: " << end << endl;
-        // cout << "Select upper_x: " << upper0->select(upper_x) << ", Select upper_x + 1: " << upper0->select(upper_x + 1) << endl;
         for (int64_t i = end; i >= start; i--) {
             uint64_t candidate = access(i);
-            // cout << "candidate" << candidate << endl;
             if (candidate <= x) {
                 return candidate;
             }
@@ -498,11 +477,7 @@ int main(int argc, char *argv[]) {
     vector<uint64_t> input(n);
     for (size_t i = 0; i < n; i++) {
         input_file >> input[i];
-        if (i > 0 && input[i] == input[i-1]) {
-            cout << "duplicate\n";
-        }
     }
-    // cout << "end\n";
     if (query_type == "pd") {
         vector<uint64_t> query;
         vector<uint64_t> answers;
@@ -513,16 +488,8 @@ int main(int argc, char *argv[]) {
 
         EliasFano *coding = new EliasFano(input);
         for (uint64_t q: query) {
-            if (input_path == "access.txt") {
-                answers.push_back(coding->access(q));
-            } else {
-                // printf("query: %llu\n", q);
-                answers.push_back(coding->predecessor(q));
-                // cout << answers.back() << '\n';
-                // printf("answer: %llu\n", coding->predecessor(q));
-            }
+            answers.push_back(coding->predecessor(q));
         }
-        // cout << "Answers:\n";
         for (int i = 0; i < answers.size(); i++) {
             output_file << answers[i] << endl;
         }
@@ -555,9 +522,6 @@ int main(int argc, char *argv[]) {
         LinearSpaceRMQ *linear = new LinearSpaceRMQ(input);
 
         for (pair<int64_t, int64_t> q : query) {
-            // size_t result = output_path == "naive.txt" ? naive->query(q.st, q.nd)
-            //                                            : (output_path == "sparse.txt" ? sparse->query(q.st, q.nd)
-            //                                                                           : linear->query(q.st, q.nd));
             size_t result = linear->query(q.st, q.nd);
             answers.push_back(result);
         }
