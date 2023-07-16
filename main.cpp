@@ -11,6 +11,7 @@
 #include <cmath>
 #include <utility>
 #include <functional>
+#include <bitset>
 
 #define st first
 #define nd second
@@ -20,68 +21,69 @@ using namespace std;
 class BitVector {
     public:
     BitVector(vector<bool> &input) {
-        size_t N = input.size();
-        size_t logN = bit_width(N) - 1;
-        block_size = logN / 2;
-        super_block_size = block_size * block_size;
+        uint64_t N = input.size();
+        uint64_t logN = bit_width(N) - 1;
+        // block_size = logN / 2;
+        // super_block_size = block_size * block_size;
 
-        block.resize(N / block_size);
-        block_number.resize(N / block_size);
-        super_block.resize(N / super_block_size);
+        // block.resize(N / block_size);
+        // block_number.resize(N / block_size);
+        // super_block.resize(N / super_block_size);
 
-        vector<uint32_t> inblock;
-        uint32_t inblock_zeroes = 0;
-        size_t cur_block = 0;
-        size_t cur_super_block = 0;
-        // TODO: maybe set the block_number to 1 before
-        // TODO: handle the inblock being cleared after assignment case
-        for (int i = 0; i < N; i++) {
-            block_number[cur_block] += input[i];
-            block_number[cur_block] <<= 1;
-            inblock_zeroes += input[i] ? 1 : 0;
-            inblock.push_back(inblock_zeroes);
+        // vector<uint64_t> inblock;
+        // uint64_t inblock_zeroes = 0;
+        // uint64_t cur_block = 0;
+        // uint64_t cur_super_block = 0;
+        // // TODO: maybe set the block_number to 1 before
+        // // TODO: handle the inblock being cleared after assignment case
+        // for (int i = 0; i < N; i++) {
+        //     block_number[cur_block] += input[i];
+        //     block_number[cur_block] <<= 1;
+        //     inblock_zeroes += input[i] ? 1 : 0;
+        //     inblock.push_back(inblock_zeroes);
 
-            if (!input[i]) {
-                block[cur_block]++;
-                super_block[cur_super_block]++;
-            }
+        //     if (!input[i]) {
+        //         block[cur_block]++;
+        //         super_block[cur_super_block]++;
+        //     }
             
-            if ((i + 1) % block_size == 0) {
-                lookup[block_number[cur_block]] = inblock;
-                inblock_zeroes = 0;
-                inblock.clear();
-                cur_block++;
-                block[cur_block] = block[cur_block - 1];
-            }
+        //     if ((i + 1) % block_size == 0) {
+        //         lookup[block_number[cur_block]] = inblock;
+        //         inblock_zeroes = 0;
+        //         inblock.clear();
+        //         cur_block++;
+        //         block[cur_block] = block[cur_block - 1];
+        //     }
             
-            if ((i + 1) % super_block_size == 0) {
-                cur_super_block++;
-                block[cur_block] = 0;
-            }
-        }
+        //     if ((i + 1) % super_block_size == 0) {
+        //         cur_super_block++;
+        //         block[cur_block] = 0;
+        //     }
+        // }
 
-        uint32_t chunk_zeroes = 0;
+        uint64_t chunk_zeroes = 0;
         chunk_target = logN * logN;
         chunk_starts.push_back(0);
-        for (size_t i = 0; i < N; i++) {
+        for (uint64_t i = 0; i < N; i++) {
             if (chunk_zeroes == chunk_target) {
                 chunk_starts.push_back(i);
                 chunk_zeroes = 0;
             }
 
             if (!input[i]) {
+                total_zero_count++;
                 chunk_zeroes++;
             }
         }
         chunk_starts.push_back(N);
-        const uint32_t sparse_threshold = logN * logN * logN * logN;
-        const uint32_t sub_sparse_threshold = 0.5 * logN;
+        const uint64_t sparse_threshold = logN * logN * logN * logN;
+        const uint64_t sub_sparse_threshold = 0.5 * logN;
         sub_chunk_target = sqrt(logN);
-        for (size_t i = 1; i < chunk_starts.size(); i++) {
-            uint32_t chunk_size = chunk_starts[i] - chunk_starts[i - 1];
-            uint32_t cur_chunk = i - 1;
+        for (uint64_t i = 1; i < chunk_starts.size(); i++) {
+            uint64_t chunk_size = chunk_starts[i] - chunk_starts[i - 1];
+            uint64_t cur_chunk = i - 1;
             if (chunk_size >= sparse_threshold) {
-                for (size_t j = chunk_starts[cur_chunk]; j < chunk_starts[cur_chunk + 1]; j++) {
+                for (uint64_t j = chunk_starts[cur_chunk]; j < chunk_starts[cur_chunk + 1]; j++) {
                     if (input[j] == 0) {
                         sparse_lookup[cur_chunk].push_back(j - chunk_starts[cur_chunk]);
                     }
@@ -90,9 +92,9 @@ class BitVector {
                     sparse_lookup[cur_chunk].push_back(0);
                 }
             } else {
-                uint32_t sub_chunk_zeroes = 0;
+                uint64_t sub_chunk_zeroes = 0;
                 sub_chunk_starts[cur_chunk].push_back(0);
-                for (size_t j = chunk_starts[cur_chunk]; j < chunk_starts[cur_chunk + 1]; j++) {
+                for (uint64_t j = chunk_starts[cur_chunk]; j < chunk_starts[cur_chunk + 1]; j++) {
                     if (sub_chunk_zeroes == sub_chunk_target) {
                         // offset relative to the main chunk the sub chunk belongs to
                         sub_chunk_starts[cur_chunk].push_back(j - chunk_starts[cur_chunk]);
@@ -106,13 +108,13 @@ class BitVector {
                 }
                 sub_chunk_starts[cur_chunk].push_back(chunk_starts[cur_chunk + 1] - chunk_starts[cur_chunk]);
                 // process all sub chunks of the current main chunk
-                vector<uint32_t> sub_chunks = sub_chunk_starts[cur_chunk];
-                for (size_t j = 1; j < sub_chunks.size() + 1; j++) {
-                    uint32_t sub_chunk_size = (j == sub_chunks.size() ? chunk_starts[cur_chunk + 1] : sub_chunks[j] - sub_chunks[j - 1]);
-                    uint32_t cur_sub_chunk = j - 1;
+                vector<uint64_t> sub_chunks = sub_chunk_starts[cur_chunk];
+                for (uint64_t j = 1; j < sub_chunks.size() + 1; j++) {
+                    uint64_t sub_chunk_size = (j == sub_chunks.size() ? chunk_starts[cur_chunk + 1] : sub_chunks[j] - sub_chunks[j - 1]);
+                    uint64_t cur_sub_chunk = j - 1;
                     if (sub_chunk_size >= sub_sparse_threshold) {
                         // create lookup table for the current sub chunk
-                        for (size_t k = sub_chunks[cur_sub_chunk]; k < sub_chunks[cur_sub_chunk + 1]; k++) {
+                        for (uint64_t k = sub_chunks[cur_sub_chunk]; k < sub_chunks[cur_sub_chunk + 1]; k++) {
                             if (!input[k + chunk_starts[cur_chunk]]) {
                                 sub_sparse_lookup[cur_chunk][cur_sub_chunk].push_back(k - sub_chunks[cur_sub_chunk]);
                             }
@@ -121,13 +123,13 @@ class BitVector {
                             sub_sparse_lookup[cur_chunk][cur_sub_chunk].push_back(0);
                         }
                     } else {
-                        uint32_t sub_chunk_encoding = 1;
-                        for (size_t k = sub_chunks[cur_sub_chunk]; k < sub_chunks[cur_sub_chunk + 1]; k++) {
+                        uint64_t sub_chunk_encoding = 1;
+                        for (uint64_t k = sub_chunks[cur_sub_chunk]; k < sub_chunks[cur_sub_chunk + 1]; k++) {
                             sub_chunk_encoding += input[k + chunk_starts[cur_chunk]] ? 1 : 0;
                             sub_chunk_encoding <<= 1;
                         }
                         sub_dense_encodings[cur_chunk][cur_sub_chunk] = sub_chunk_encoding;
-                        for (size_t k = sub_chunks[cur_sub_chunk]; k < sub_chunks[cur_sub_chunk + 1]; k++) {
+                        for (uint64_t k = sub_chunks[cur_sub_chunk]; k < sub_chunks[cur_sub_chunk + 1]; k++) {
                             if (!input[k + chunk_starts[cur_chunk]]) {
                                 sub_dense_lookup[sub_chunk_encoding].push_back(k - sub_chunks[cur_sub_chunk]);
                             }
@@ -141,24 +143,28 @@ class BitVector {
         }
     }
 
-    uint32_t rank(uint32_t x, uint32_t bit) {
-        uint32_t super_idx = x / super_block_size;
-        uint32_t block_idx = x / block_size;
-        uint32_t block_offset = x % block_size;
-        uint32_t zeroes = super_block[super_idx] + block[block_idx] + lookup[block_number[block_idx]][block_offset];
+    uint64_t rank(uint64_t x, uint64_t bit) {
+        uint64_t super_idx = x / super_block_size;
+        uint64_t block_idx = x / block_size;
+        uint64_t block_offset = x % block_size;
+        uint64_t zeroes = super_block[super_idx] + block[block_idx] + lookup[block_number[block_idx]][block_offset];
         return bit ? x - zeroes : zeroes;
     }
 
-    uint32_t select(uint32_t x) {
-        uint32_t chunk_idx = x / chunk_target;
-        uint32_t chunk_offset = x % chunk_target;
-
+    uint64_t select(uint64_t x) {
+        x--;
+        if (x >= total_zero_count) {
+            return chunk_starts.back();
+        }
+        uint64_t chunk_idx = x / chunk_target;
+        uint64_t chunk_offset = x % chunk_target;
+        // cout << "Chunk idx: " << chunk_idx << " Chunk offset: " << chunk_offset << endl;
         // check if the chunk is sparse:
         if (sparse_lookup.find(chunk_idx) != sparse_lookup.end()) {
             return sparse_lookup[chunk_idx][chunk_offset];
         } else {
-            uint32_t sub_chunk_idx = chunk_offset / sub_chunk_target;
-            uint32_t sub_chunk_offset = chunk_offset % sub_chunk_target;
+            uint64_t sub_chunk_idx = chunk_offset / sub_chunk_target;
+            uint64_t sub_chunk_offset = chunk_offset % sub_chunk_target;
             // check if the sub chunk is sparse
             if (sub_sparse_lookup.find(chunk_idx) != sub_sparse_lookup.end() &&
                 sub_sparse_lookup[chunk_idx].find(sub_chunk_idx) != sub_sparse_lookup[chunk_idx].end()) {
@@ -172,47 +178,38 @@ class BitVector {
     }
 
     private:
-    size_t block_size, super_block_size;
-    vector<uint32_t> block, block_number, super_block;
-    unordered_map<uint32_t, vector<uint32_t>> lookup;
+    uint64_t block_size, super_block_size;
+    vector<uint64_t> block, block_number, super_block;
+    unordered_map<uint64_t, vector<uint64_t>> lookup;
 
-    size_t chunk_target, sub_chunk_target;
-    vector<uint32_t> chunk_starts;
-    unordered_map<uint32_t, vector<uint32_t>> sparse_lookup, sub_chunk_starts, sub_dense_lookup;
-    unordered_map<uint32_t, unordered_map<uint32_t,vector<uint32_t>>> sub_sparse_lookup;
-    unordered_map<uint32_t, unordered_map<uint32_t, uint32_t>> sub_dense_encodings;
+    uint64_t chunk_target, sub_chunk_target;
+    vector<uint64_t> chunk_starts;
+    unordered_map<uint64_t, vector<uint64_t>> sparse_lookup, sub_chunk_starts, sub_dense_lookup;
+    unordered_map<uint64_t, unordered_map<uint64_t,vector<uint64_t>>> sub_sparse_lookup;
+    unordered_map<uint64_t, unordered_map<uint64_t, uint64_t>> sub_dense_encodings;
+    uint64_t total_zero_count = 0;
 };
 
 class NaiveBitVector {
     public:
-    NaiveBitVector(vector<bool> &input) : v(input) {}
-    
-    uint64_t rank(uint64_t x, uint64_t bit) {
-        uint64_t cnt = 0;
-        for (uint64_t i = 0; i < x; i++) {
-            if (!v[i]) {
-                cnt++;
+    NaiveBitVector(vector<bool> &input) : v(input) {
+        for (uint64_t i = 0; i < input.size(); i++) {
+            if (!input[i]) {
+                selects.push_back(i);
             }
         }
-        return !bit ? cnt : x - cnt;
     }
 
     uint64_t select(uint64_t x) {
-        uint64_t cnt = 0;
-        if (x == 0) {
-            return 0;
+        if (x > selects.size()) {
+            cout << "Query exceeds list\n";
+            // throw invalid_argument("Query exceeds list");
+            return v.size();
         }
-        for (uint64_t i = 0; i < v.size(); i++) {
-            if (v[i] == 0) {
-                cnt++;
-            }
-            if (cnt == x) {
-                return i;
-            }
-        }
-        return v.size() - 1;
+        return selects[x - 1];
     }
     private:
+    vector<uint64_t> selects;
     vector<bool> v;
 };
 
@@ -222,10 +219,20 @@ class EliasFano {
         size_t N = input.size();
         uint64_t U = input[N - 1];
         size_t upper_size = ceil(log2(N));
-        lower_size = ceil(log2(U) - log2(N));
+        lower_size = ceil(log2(U) - upper_size);
+        // cout << "Upper size " << upper_size << " lower size: " << lower_size << endl;
+        // printf("Lower size: %llu\n", lower_size);
+        lower_mask = (1ULL << lower_size) - 1;
+        upper_mask = ((1ULL << (upper_size + lower_size)) - 1) ^ lower_mask;
+        
+        if (upper_size + lower_size == 64) {
+            upper_mask = uint64_t(-1) ^ lower_mask;
+        }
 
-        lower_mask = (1 << lower_size) - 1;
-        upper_mask = ((1 << (upper_size + lower_size)) - 1) ^ lower_mask;
+        bitset<64> blow(lower_mask);
+        // cout << "lower_mask: " << blow << endl;
+        bitset<64> bupp(upper_mask);
+        // cout << "upper mask: " << bupp << endl;
 
         vector<bool> upper_bits, upper_bits_inv;
         uint64_t current_bucket = 0;
@@ -238,13 +245,33 @@ class EliasFano {
             upper_bits.push_back(true);
             lower.push_back(input[i] & lower_mask);
         }
-        upper_bits.resize(2 * N);
+        if (upper_bits.size() < 2 * N + 1) {
+            upper_bits.resize(2 * N + 1);
+        }
         for (bool b: upper_bits) {
             upper_bits_inv.push_back(!b);
         }
+
+        bitset<64> binary(lower_mask);
+        // cout << binary << '\n';
+        
+        // cout << "Lower\n";
+        // for (size_t i = 0; i < lower.size(); i++) {
+        //     bitset<64> binary(lower[i]);
+        //     cout << binary << '\n';
+        // }
+        // cout << "Upper\n";
+        // for (size_t i = 0; i < upper_bits.size(); i++) {
+        //     cout << upper_bits[i];
+        // }
+        // cout<<"\nend\n";
+
         // upper = new NaiveBitVector(upper_bits);
-        upper0 = new NaiveBitVector(upper_bits);
-        upper1 = new NaiveBitVector(upper_bits_inv);
+        // upper0 = new NaiveBitVector(upper_bits);
+        // upper1 = new NaiveBitVector(upper_bits_inv);
+        upper0 = new BitVector(upper_bits);
+        upper1 = new BitVector(upper_bits_inv);
+        
     }
 
     uint64_t access(int64_t index) {
@@ -257,8 +284,11 @@ class EliasFano {
         uint64_t lower_x = x & lower_mask;
         int64_t start = upper_x ? upper0->select(upper_x) - upper_x + 1 : 0;
         int64_t end = upper0->select(upper_x + 1) - upper_x;
+        // cout << "x: " << x << ", Upper_x: " << upper_x << ", Start " << start << ", End: " << end << endl;
+        // cout << "Select upper_x: " << upper0->select(upper_x) << ", Select upper_x + 1: " << upper0->select(upper_x + 1) << endl;
         for (int64_t i = end; i >= start; i--) {
             uint64_t candidate = access(i);
+            // cout << "candidate" << candidate << endl;
             if (candidate <= x) {
                 return candidate;
             }
@@ -272,8 +302,8 @@ class EliasFano {
     private:
     uint64_t lower_size, lower_mask, upper_mask;
     vector<uint64_t> lower;
-    NaiveBitVector *upper0, *upper1;
-    // BitVector *upper0, *upper1;
+    // NaiveBitVector *upper0, *upper1;
+    BitVector *upper0, *upper1;
 
 };
 
@@ -463,14 +493,16 @@ int main(int argc, char *argv[]) {
     ifstream input_file(input_path);
     ofstream output_file(output_path);
 
-    size_t n;
+    uint64_t n;
     input_file >> n;
-
     vector<uint64_t> input(n);
     for (size_t i = 0; i < n; i++) {
         input_file >> input[i];
+        if (i > 0 && input[i] == input[i-1]) {
+            cout << "duplicate\n";
+        }
     }
-
+    // cout << "end\n";
     if (query_type == "pd") {
         vector<uint64_t> query;
         vector<uint64_t> answers;
@@ -484,14 +516,15 @@ int main(int argc, char *argv[]) {
             if (input_path == "access.txt") {
                 answers.push_back(coding->access(q));
             } else {
-                printf("query: %llu\n", q);
+                // printf("query: %llu\n", q);
                 answers.push_back(coding->predecessor(q));
-                printf("answer: %llu\n", input[coding->predecessor(q)]);
+                // cout << answers.back() << '\n';
+                // printf("answer: %llu\n", coding->predecessor(q));
             }
         }
-        cout << "Answers:\n";
+        // cout << "Answers:\n";
         for (int i = 0; i < answers.size(); i++) {
-            cout << answers[i] << endl;
+            output_file << answers[i] << endl;
         }
 
     } else if (query_type == "rmq") {
