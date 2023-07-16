@@ -41,7 +41,7 @@ class BitVector {
             inblock_zeroes += input[i] ? 1 : 0;
             inblock.push_back(inblock_zeroes);
 
-            if (input[i] == 0) {
+            if (!input[i]) {
                 block[cur_block]++;
                 super_block[cur_super_block]++;
             }
@@ -61,25 +61,24 @@ class BitVector {
         }
 
         uint32_t chunk_zeroes = 0;
-        uint32_t current_chunk = 1;
         chunk_target = logN * logN;
+        chunk_starts.push_back(0);
         for (size_t i = 0; i < N; i++) {
             if (chunk_zeroes == chunk_target) {
-                chunk_starts[current_chunk] = i;
+                chunk_starts.push_back(i);
                 chunk_zeroes = 0;
-                current_chunk++;
             }
 
-            if (input[i] == 0) {
+            if (!input[i]) {
                 chunk_zeroes++;
             }
         }
-
+        chunk_starts.push_back(N);
         const uint32_t sparse_threshold = logN * logN * logN * logN;
         const uint32_t sub_sparse_threshold = 0.5 * logN;
         sub_chunk_target = sqrt(logN);
-        for (size_t i = 1; i < chunk_starts.size() + 1; i++) {
-            uint32_t chunk_size = (i == chunk_starts.size() ? N : chunk_starts[i]) - chunk_starts[i - 1];
+        for (size_t i = 1; i < chunk_starts.size(); i++) {
+            uint32_t chunk_size = chunk_starts[i] - chunk_starts[i - 1];
             uint32_t cur_chunk = i - 1;
             if (chunk_size >= sparse_threshold) {
                 for (size_t j = chunk_starts[cur_chunk]; j < chunk_starts[cur_chunk + 1]; j++) {
@@ -87,21 +86,25 @@ class BitVector {
                         sparse_lookup[cur_chunk].push_back(j - chunk_starts[cur_chunk]);
                     }
                 }
+                if (sparse_lookup[cur_chunk].empty()) {
+                    sparse_lookup[cur_chunk].push_back(0);
+                }
             } else {
                 uint32_t sub_chunk_zeroes = 0;
-                uint32_t current_sub_chunk = 1;
+                sub_chunk_starts[cur_chunk].push_back(0);
                 for (size_t j = chunk_starts[cur_chunk]; j < chunk_starts[cur_chunk + 1]; j++) {
                     if (sub_chunk_zeroes == sub_chunk_target) {
                         // offset relative to the main chunk the sub chunk belongs to
-                        sub_chunk_starts[cur_chunk][current_sub_chunk] = j - chunk_starts[cur_chunk];
+                        sub_chunk_starts[cur_chunk].push_back(j - chunk_starts[cur_chunk]);
                         sub_chunk_zeroes = 0;
-                        current_sub_chunk++;
                     }
 
-                    if (input[j] == 0) {
+                    if (!input[j]) {
                         sub_chunk_zeroes++;
                     }
+
                 }
+                sub_chunk_starts[cur_chunk].push_back(chunk_starts[cur_chunk + 1] - chunk_starts[cur_chunk]);
                 // process all sub chunks of the current main chunk
                 vector<uint32_t> sub_chunks = sub_chunk_starts[cur_chunk];
                 for (size_t j = 1; j < sub_chunks.size() + 1; j++) {
@@ -110,9 +113,12 @@ class BitVector {
                     if (sub_chunk_size >= sub_sparse_threshold) {
                         // create lookup table for the current sub chunk
                         for (size_t k = sub_chunks[cur_sub_chunk]; k < sub_chunks[cur_sub_chunk + 1]; k++) {
-                            if (input[k + chunk_starts[cur_chunk]] == 0) {
-                                sub_sparse_lookup[make_pair(cur_chunk, cur_sub_chunk)].push_back(k);
+                            if (!input[k + chunk_starts[cur_chunk]]) {
+                                sub_sparse_lookup[cur_chunk][cur_sub_chunk].push_back(k - sub_chunks[cur_sub_chunk]);
                             }
+                        }
+                        if (sub_sparse_lookup[cur_chunk][cur_sub_chunk].empty()) {
+                            sub_sparse_lookup[cur_chunk][cur_sub_chunk].push_back(0);
                         }
                     } else {
                         uint32_t sub_chunk_encoding = 1;
@@ -120,11 +126,14 @@ class BitVector {
                             sub_chunk_encoding += input[k + chunk_starts[cur_chunk]] ? 1 : 0;
                             sub_chunk_encoding <<= 1;
                         }
-                        sub_dense_encodings[make_pair(cur_chunk, cur_sub_chunk)] = sub_chunk_encoding;
+                        sub_dense_encodings[cur_chunk][cur_sub_chunk] = sub_chunk_encoding;
                         for (size_t k = sub_chunks[cur_sub_chunk]; k < sub_chunks[cur_sub_chunk + 1]; k++) {
-                            if (input[k + chunk_starts[cur_chunk]] == 0) {
-                                sub_dense_lookup[sub_chunk_encoding].push_back(k);
+                            if (!input[k + chunk_starts[cur_chunk]]) {
+                                sub_dense_lookup[sub_chunk_encoding].push_back(k - sub_chunks[cur_sub_chunk]);
                             }
+                        }
+                        if (sub_dense_lookup[sub_chunk_encoding].empty()) {
+                            sub_dense_lookup[sub_chunk_encoding].push_back(0);
                         }
                     }
                 }
@@ -140,26 +149,24 @@ class BitVector {
         return bit ? x - zeroes : zeroes;
     }
 
-    uint32_t select(uint32_t x, uint32_t bit) {
+    uint32_t select(uint32_t x) {
         uint32_t chunk_idx = x / chunk_target;
         uint32_t chunk_offset = x % chunk_target;
-        if (bit == 0) {
-            // check if the chunk is sparse:
-            if (sparse_lookup.find(chunk_idx) != sparse_lookup.end()) {
-                return sparse_lookup[chunk_idx][chunk_offset];
+
+        // check if the chunk is sparse:
+        if (sparse_lookup.find(chunk_idx) != sparse_lookup.end()) {
+            return sparse_lookup[chunk_idx][chunk_offset];
+        } else {
+            uint32_t sub_chunk_idx = chunk_offset / sub_chunk_target;
+            uint32_t sub_chunk_offset = chunk_offset % sub_chunk_target;
+            // check if the sub chunk is sparse
+            if (sub_sparse_lookup.find(chunk_idx) != sub_sparse_lookup.end() &&
+                sub_sparse_lookup[chunk_idx].find(sub_chunk_idx) != sub_sparse_lookup[chunk_idx].end()) {
+                return chunk_starts[chunk_idx] + sub_chunk_starts[chunk_idx][sub_chunk_idx] +
+                       sub_sparse_lookup[chunk_idx][sub_chunk_idx][sub_chunk_offset];
             } else {
-                uint32_t sub_chunk_idx = chunk_offset / sub_chunk_target;
-                uint32_t sub_chunk_offset = chunk_offset % sub_chunk_target;
-                // check if the sub chunk is sparse
-                if (sub_sparse_lookup.find(make_pair(chunk_idx, sub_chunk_idx)) != sub_sparse_lookup.end()) {
-                    return chunk_starts[chunk_idx] +
-                           sub_chunk_starts[chunk_idx][sub_chunk_idx] +
-                           sub_sparse_lookup[make_pair(chunk_idx, sub_chunk_idx)][sub_chunk_offset];
-                } else {
-                    return chunk_starts[chunk_idx] +
-                           sub_chunk_starts[chunk_idx][sub_chunk_idx] +
-                           sub_dense_lookup[sub_dense_encodings[make_pair(chunk_idx, sub_chunk_idx)]][sub_chunk_offset];
-                }
+                return chunk_starts[chunk_idx] + sub_chunk_starts[chunk_idx][sub_chunk_idx] +
+                       sub_dense_lookup[sub_dense_encodings[chunk_idx][sub_chunk_idx]][sub_chunk_offset];
             }
         }
     }
@@ -172,8 +179,8 @@ class BitVector {
     size_t chunk_target, sub_chunk_target;
     vector<uint32_t> chunk_starts;
     unordered_map<uint32_t, vector<uint32_t>> sparse_lookup, sub_chunk_starts, sub_dense_lookup;
-    unordered_map<pair<uint32_t, uint32_t>, vector<uint32_t>> sub_sparse_lookup;
-    unordered_map<pair<uint32_t, uint32_t>, uint32_t> sub_dense_encodings;
+    unordered_map<uint32_t, unordered_map<uint32_t,vector<uint32_t>>> sub_sparse_lookup;
+    unordered_map<uint32_t, unordered_map<uint32_t, uint32_t>> sub_dense_encodings;
 };
 
 class NaiveBitVector {
@@ -190,13 +197,13 @@ class NaiveBitVector {
         return !bit ? cnt : x - cnt;
     }
 
-    uint64_t select(uint64_t x, uint64_t bit) {
+    uint64_t select(uint64_t x) {
         uint64_t cnt = 0;
         if (x == 0) {
             return 0;
         }
         for (uint64_t i = 0; i < v.size(); i++) {
-            if (v[i] == bit) {
+            if (v[i] == 0) {
                 cnt++;
             }
             if (cnt == x) {
@@ -220,7 +227,7 @@ class EliasFano {
         lower_mask = (1 << lower_size) - 1;
         upper_mask = ((1 << (upper_size + lower_size)) - 1) ^ lower_mask;
 
-        vector<bool> upper_bits;
+        vector<bool> upper_bits, upper_bits_inv;
         uint64_t current_bucket = 0;
         for (size_t i = 0; i < N; i++) {
             uint64_t upper_part = (input[i] & upper_mask) >> lower_size;
@@ -232,19 +239,24 @@ class EliasFano {
             lower.push_back(input[i] & lower_mask);
         }
         upper_bits.resize(2 * N);
-        upper = new NaiveBitVector(upper_bits);
+        for (bool b: upper_bits) {
+            upper_bits_inv.push_back(!b);
+        }
+        // upper = new NaiveBitVector(upper_bits);
+        upper0 = new NaiveBitVector(upper_bits);
+        upper1 = new NaiveBitVector(upper_bits_inv);
     }
 
     uint64_t access(int64_t index) {
-        uint64_t upper_bits = upper->select(index + 1, 1) - index;
+        uint64_t upper_bits = upper1->select(index + 1) - index;
         return (upper_bits << lower_size) + lower[index];
     }
 
     uint64_t predecessor(uint64_t x) {
         uint64_t upper_x = (x & upper_mask) >> lower_size;
         uint64_t lower_x = x & lower_mask;
-        int64_t start = upper_x ? upper->select(upper_x, 0) - upper_x + 1 : 0;
-        int64_t end = upper->select(upper_x + 1, 0) - upper_x;
+        int64_t start = upper_x ? upper0->select(upper_x) - upper_x + 1 : 0;
+        int64_t end = upper0->select(upper_x + 1) - upper_x;
         for (int64_t i = end; i >= start; i--) {
             uint64_t candidate = access(i);
             if (candidate <= x) {
@@ -260,7 +272,8 @@ class EliasFano {
     private:
     uint64_t lower_size, lower_mask, upper_mask;
     vector<uint64_t> lower;
-    NaiveBitVector *upper;
+    NaiveBitVector *upper0, *upper1;
+    // BitVector *upper0, *upper1;
 
 };
 
@@ -471,11 +484,14 @@ int main(int argc, char *argv[]) {
             if (input_path == "access.txt") {
                 answers.push_back(coding->access(q));
             } else {
+                printf("query: %llu\n", q);
                 answers.push_back(coding->predecessor(q));
+                printf("answer: %llu\n", input[coding->predecessor(q)]);
             }
         }
+        cout << "Answers:\n";
         for (int i = 0; i < answers.size(); i++) {
-            cout << query[i] << " " << answers[i] << endl;
+            cout << answers[i] << endl;
         }
 
     } else if (query_type == "rmq") {
