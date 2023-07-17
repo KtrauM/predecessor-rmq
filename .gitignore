@@ -1,3 +1,11 @@
 .vscode/*
 ads_programm
 *.txt
+bitvector
+bitvector.cpp
+genpq.py
+log
+pd_test.sh
+rmq_examples.zip
+testpq.py
+gen.py
