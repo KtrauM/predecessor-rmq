@@ -118,9 +118,9 @@ class SuccintBitVector : public BitVectorInterface {
                 }
                 sub_chunk_starts[cur_chunk].push_back(chunk_starts[cur_chunk + 1] - chunk_starts[cur_chunk]);
                 // process all sub chunks of the current main chunk
-                vector<uint64_t> sub_chunks = sub_chunk_starts[cur_chunk];
-                for (uint64_t j = 1; j < sub_chunks.size() + 1; j++) {
-                    uint64_t sub_chunk_size = (j == sub_chunks.size() ? chunk_starts[cur_chunk + 1] : sub_chunks[j] - sub_chunks[j - 1]);
+                vector<uint64_t> &sub_chunks = sub_chunk_starts[cur_chunk];
+                for (uint64_t j = 1; j < sub_chunks.size(); j++) {
+                    uint64_t sub_chunk_size = sub_chunks[j] - sub_chunks[j - 1];
                     uint64_t cur_sub_chunk = j - 1;
                     if (sub_chunk_size >= sub_sparse_threshold) {
                         // create lookup table for the current sub chunk
