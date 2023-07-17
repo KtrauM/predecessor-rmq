@@ -18,9 +18,15 @@
 
 using namespace std;
 
-class BitVector {
+class BitVectorInterface {
     public:
-    BitVector(vector<bool> &input) {
+    virtual uint64_t select(uint64_t x) = 0;
+    virtual uint64_t getSizeInBits() = 0;
+};
+
+class SuccintBitVector : public BitVectorInterface {
+    public:
+    SuccintBitVector(vector<bool> &input) {
         uint64_t N = input.size();
         uint64_t logN = bit_width(N) - 1;
         // RANK PREPROCESSING
@@ -242,7 +248,7 @@ class BitVector {
     unordered_map<uint64_t, unordered_map<uint64_t, uint64_t>> sub_dense_encodings;
 };
 
-class NaiveBitVector {
+class NaiveBitVector : public BitVectorInterface {
     public:
     NaiveBitVector(vector<bool> &input) : v(input) {
         for (uint64_t i = 0; i < input.size(); i++) {
@@ -300,8 +306,8 @@ class EliasFano {
         
         // upper0 = new NaiveBitVector(upper_bits);
         // upper1 = new NaiveBitVector(upper_bits_inv);
-        upper0 = new BitVector(upper_bits);
-        upper1 = new BitVector(upper_bits_inv);
+        upper0 = new SuccintBitVector(upper_bits);
+        upper1 = new SuccintBitVector(upper_bits_inv);
         
     }
 
@@ -348,8 +354,7 @@ class EliasFano {
     private:
     uint64_t lower_size, lower_mask, upper_mask;
     vector<uint64_t> lower;
-    // NaiveBitVector *upper0, *upper1;
-    BitVector *upper0, *upper1;
+    BitVectorInterface *upper0, *upper1;
 
 };
 
