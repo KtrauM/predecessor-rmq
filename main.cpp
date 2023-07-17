@@ -370,7 +370,13 @@ class EliasFano {
 
 };
 
-class NaiveRMQ {
+class RMQInterface {
+    public:
+    virtual size_t query(size_t start, size_t end) = 0;
+    virtual uint64_t getSizeInBits() = 0;
+};
+
+class NaiveRMQ : public RMQInterface{
    public:
     NaiveRMQ(vector<uint64_t> &input) {
         size_t N = input.size();
@@ -403,7 +409,7 @@ class NaiveRMQ {
     vector<vector<size_t>> table;
 };
 
-class SparseTableRMQ {
+class SparseTableRMQ : public RMQInterface {
    public:
     SparseTableRMQ(vector<uint64_t> &input) : values(input) {
         size_t N = input.size();
@@ -456,7 +462,7 @@ class SparseTableRMQ {
     vector<vector<size_t>> table;
 };
 
-class LinearSpaceRMQ {
+class LinearSpaceRMQ : public RMQInterface{
    public:
     LinearSpaceRMQ(vector<uint64_t> input) : data(input) {
         block_size = bit_width(input.size()) / 4 + 1;
@@ -662,9 +668,9 @@ int main(int argc, char *argv[]) {
 
         auto start = std::chrono::high_resolution_clock::now();
 
-        // NaiveRMQ *naive = new NaiveRMQ(input);
-        // SparseTableRMQ *sparse = new SparseTableRMQ(input);
-        LinearSpaceRMQ *linear = new LinearSpaceRMQ(input);
+        // RMQInterface *naive = new NaiveRMQ(input);
+        // RMQInterface *sparse = new SparseTableRMQ(input);
+        RMQInterface *linear = new LinearSpaceRMQ(input);
 
         for (pair<int64_t, int64_t> q : query) {
             size_t result = linear->query(q.st, q.nd);
