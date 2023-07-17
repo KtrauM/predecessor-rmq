@@ -266,6 +266,18 @@ class NaiveBitVector : public BitVectorInterface {
         }
         return selects[x - 1];
     }
+    
+    uint64_t getSizeInBits() {
+        uint64_t size = 0;
+        size += sizeof(selects);
+        size += selects.size() * sizeof(uint32_t);
+        
+        size += sizeof(v);
+        size += v.size() * sizeof(bool);
+
+        return size;
+    }
+
     private:
     vector<uint64_t> selects;
     vector<bool> v;
@@ -343,10 +355,10 @@ class EliasFano {
         size += lower.size() * sizeof(lower[0]);
 
         size += sizeof(upper0);
-        size += upper0->getSizeInBits();
+        size += upper0->getSizeInBits() / 8;
 
         size += sizeof(upper1);
-        size += upper1->getSizeInBits();
+        size += upper1->getSizeInBits() / 8;
         
         return size * 8;
     }
@@ -376,6 +388,16 @@ class NaiveRMQ {
         }
     }
     size_t query(size_t start, size_t end) { return table[start][end]; }
+
+    uint64_t getSizeInBits() {
+        uint64_t size = 0;
+        size += sizeof(vector<vector<size_t>>);
+        for (const auto &entry: table) {
+            size += sizeof(vector<size_t>);
+            size += entry.size() * sizeof(size_t);
+        }
+        return size * 8;
+    }
 
    private:
     vector<vector<size_t>> table;
@@ -413,6 +435,20 @@ class SparseTableRMQ {
         size_t left_rmq = table[start][level];
         size_t right_rmq = table[end - offset + 1][level];
         return values[left_rmq] <= values[right_rmq] ? left_rmq : right_rmq;
+    }
+
+    uint64_t getSizeInBits() {
+        uint64_t size = 0;
+        size += sizeof(vector<uint64_t>);
+        size += values.size() * sizeof(uint64_t);
+
+        size += sizeof(vector<vector<size_t>>);
+        for (const auto &entry: table) {
+            size += sizeof(vector<size_t>);
+            size += entry.size() * sizeof(size_t);
+        }
+        
+        return size * 8;
     }
 
    private:
@@ -527,6 +563,35 @@ class LinearSpaceRMQ {
         return min_idx;
     }
 
+    uint64_t getSizeInBits() {
+        uint64_t size = 0;
+        
+        size += sizeof(block_size);
+        
+        size += sizeof(blocks);
+        size += blocks.size() * sizeof(size_t);
+
+        size += sizeof(cartesian_trees);
+        for (const auto &entry: cartesian_trees) {
+            size += sizeof(uint64_t);
+            size += sizeof(vector<vector<size_t>>);
+            for (const auto &sub_vector: entry.second) {
+                size += sizeof(vector<size_t>);
+                size += sub_vector.size() * sizeof(size_t);
+            }
+        }
+
+        size += sizeof(block_tree_number);
+        size += blocks.size() * sizeof(uint64_t);
+
+        size += sizeof(data);
+        size += blocks.size() * sizeof(uint64_t);
+
+        size += sparse_table->getSizeInBits() / 8;
+
+        return size * 8;
+    }
+
    private:
     size_t block_size;
     vector<size_t> blocks;
@@ -609,7 +674,7 @@ int main(int argc, char *argv[]) {
         auto end = std::chrono::high_resolution_clock::now();
         auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
 
-        printf("RESULT algo=%s name=murat_kurnaz time=%ld space=%ld\n", query_type.c_str(), duration, sizeof(linear));
+        printf("RESULT algo=%s name=murat_kurnaz time=%ld space=%ld\n", query_type.c_str(), duration, linear->getSizeInBits());
         
         
         for (int32_t ans: answers) {
