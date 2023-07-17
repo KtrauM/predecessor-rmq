@@ -180,17 +180,66 @@ class BitVector {
         }
     }
 
-    private:
-    uint64_t block_size, super_block_size;
-    vector<uint64_t> block, block_number, super_block;
-    unordered_map<uint64_t, vector<uint64_t>> lookup;
+    uint64_t getSizeInBits() {
+    uint64_t size = 0;
 
+    // Size of member variables
+    size += sizeof(chunk_target) * 8;
+    size += sizeof(sub_chunk_target) * 8;
+    size += sizeof(total_zero_count) * 8;
+    size += sizeof(chunk_starts) * 8;
+    size += sizeof(sparse_lookup) * 8;
+    size += sizeof(sub_chunk_starts) * 8;
+    size += sizeof(sub_dense_lookup) * 8;
+    size += sizeof(sub_sparse_lookup) * 8;
+    size += sizeof(sub_dense_encodings) * 8;
+
+    // Size of vectors
+    size += chunk_starts.size() * sizeof(chunk_starts[0]) * 8;
+    for (const auto& entry : sparse_lookup) {
+        size += sizeof(entry.first) * 8;
+        size += entry.second.size() * sizeof(entry.second[0]) * 8;
+    }
+    for (const auto& entry : sub_chunk_starts) {
+        size += sizeof(entry.first) * 8;
+        size += sizeof(entry.second) * 8;
+        size += entry.second.size() * sizeof(entry.second[0]) * 8;
+    }
+    for (const auto& entry : sub_dense_lookup) {
+        size += sizeof(entry.first) * 8;
+        size += entry.second.size() * sizeof(entry.second[0]) * 8;
+    }
+    for (const auto& entry : sub_sparse_lookup) {
+        size += sizeof(entry.first) * 8;
+        for (const auto& sub_entry : entry.second) {
+            size += sizeof(sub_entry.first) * 8;
+            size += sub_entry.second.size() * sizeof(sub_entry.second[0]) * 8;
+        }
+    }
+    for (const auto& entry : sub_dense_encodings) {
+        size += sizeof(entry.first) * 8;
+        for (const auto& sub_entry : entry.second) {
+            size += sizeof(sub_entry.first) * 8;
+            size += sizeof(sub_entry.second) * 8;
+        }
+    }
+
+    return size;
+}
+
+    private:
+    // rank variables
+    // uint64_t block_size, super_block_size;
+    // vector<uint64_t> block, block_number, super_block;
+    // unordered_map<uint64_t, vector<uint64_t>> lookup;
+
+    // select variables
     uint64_t chunk_target, sub_chunk_target;
+    uint64_t total_zero_count = 0;
     vector<uint64_t> chunk_starts;
     unordered_map<uint64_t, vector<uint64_t>> sparse_lookup, sub_chunk_starts, sub_dense_lookup;
     unordered_map<uint64_t, unordered_map<uint64_t,vector<uint64_t>>> sub_sparse_lookup;
     unordered_map<uint64_t, unordered_map<uint64_t, uint64_t>> sub_dense_encodings;
-    uint64_t total_zero_count = 0;
 };
 
 class NaiveBitVector {
@@ -276,6 +325,24 @@ class EliasFano {
             return access(start - 1);
         }
         return UINT64_MAX;
+    }
+
+    uint64_t getSizeInBits() {
+        uint64_t size = 0;
+        size += sizeof(lower_size);
+        size += sizeof(lower_mask);
+        size += sizeof(upper_mask);
+        
+        size += sizeof(lower);
+        size += lower.size() * sizeof(lower[0]);
+
+        size += sizeof(upper0);
+        size += upper0->getSizeInBits();
+
+        size += sizeof(upper1);
+        size += upper1->getSizeInBits();
+        
+        return size * 8;
     }
 
     private:
@@ -486,10 +553,18 @@ int main(int argc, char *argv[]) {
             query.push_back(q);
         }
 
+        auto start = std::chrono::high_resolution_clock::now();
+        
         EliasFano *coding = new EliasFano(input);
         for (uint64_t q: query) {
             answers.push_back(coding->predecessor(q));
         }
+
+        auto end = std::chrono::high_resolution_clock::now();
+        auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
+
+        printf("RESULT algo=%s name=murat_kurnaz time=%ld space=%ld\n", query_type.c_str(), duration, coding->getSizeInBits());
+
         for (int i = 0; i < answers.size(); i++) {
             output_file << answers[i] << endl;
         }
