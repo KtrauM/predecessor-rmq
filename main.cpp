@@ -20,15 +20,15 @@ using namespace std;
 
 class BitVectorInterface {
     public:
-    virtual uint64_t select(uint64_t x) = 0;
+    virtual uint32_t select(uint32_t x) = 0;
     virtual uint64_t getSizeInBits() = 0;
 };
 
 class SuccintBitVector : public BitVectorInterface {
     public:
     SuccintBitVector(vector<bool> &input) {
-        uint64_t N = input.size();
-        uint64_t logN = bit_width(N) - 1;
+        uint32_t N = input.size();
+        uint32_t logN = bit_width(N) - 1;
         // RANK PREPROCESSING
         // commented out because not needed
          
@@ -39,10 +39,10 @@ class SuccintBitVector : public BitVectorInterface {
         // block_number.resize(N / block_size);
         // super_block.resize(N / super_block_size);
 
-        // vector<uint64_t> inblock;
-        // uint64_t inblock_zeroes = 0;
-        // uint64_t cur_block = 0;
-        // uint64_t cur_super_block = 0;
+        // vector<uint32_t> inblock;
+        // uint32_t inblock_zeroes = 0;
+        // uint32_t cur_block = 0;
+        // uint32_t cur_super_block = 0;
         // // TODO: maybe set the block_number to 1 before
         // // TODO: handle the inblock being cleared after assignment case
         // for (int i = 0; i < N; i++) {
@@ -71,10 +71,10 @@ class SuccintBitVector : public BitVectorInterface {
         // }
 
         // SELECT PREPROCESSING
-        uint64_t chunk_zeroes = 0;
+        uint32_t chunk_zeroes = 0;
         chunk_target = logN * logN;
         chunk_starts.push_back(0);
-        for (uint64_t i = 0; i < N; i++) {
+        for (uint32_t i = 0; i < N; i++) {
             if (chunk_zeroes == chunk_target) {
                 chunk_starts.push_back(i);
                 chunk_zeroes = 0;
@@ -86,14 +86,14 @@ class SuccintBitVector : public BitVectorInterface {
             }
         }
         chunk_starts.push_back(N);
-        const uint64_t sparse_threshold = logN * logN * logN * logN;
-        const uint64_t sub_sparse_threshold = 0.5 * logN;
+        const uint32_t sparse_threshold = logN * logN * logN * logN;
+        const uint32_t sub_sparse_threshold = 0.5 * logN;
         sub_chunk_target = sqrt(logN);
-        for (uint64_t i = 1; i < chunk_starts.size(); i++) {
-            uint64_t chunk_size = chunk_starts[i] - chunk_starts[i - 1];
-            uint64_t cur_chunk = i - 1;
+        for (uint32_t i = 1; i < chunk_starts.size(); i++) {
+            uint32_t chunk_size = chunk_starts[i] - chunk_starts[i - 1];
+            uint32_t cur_chunk = i - 1;
             if (chunk_size >= sparse_threshold) {
-                for (uint64_t j = chunk_starts[cur_chunk]; j < chunk_starts[cur_chunk + 1]; j++) {
+                for (uint32_t j = chunk_starts[cur_chunk]; j < chunk_starts[cur_chunk + 1]; j++) {
                     if (input[j] == 0) {
                         sparse_lookup[cur_chunk].push_back(j - chunk_starts[cur_chunk]);
                     }
@@ -102,9 +102,9 @@ class SuccintBitVector : public BitVectorInterface {
                     sparse_lookup[cur_chunk].push_back(0);
                 }
             } else {
-                uint64_t sub_chunk_zeroes = 0;
+                uint32_t sub_chunk_zeroes = 0;
                 sub_chunk_starts[cur_chunk].push_back(0);
-                for (uint64_t j = chunk_starts[cur_chunk]; j < chunk_starts[cur_chunk + 1]; j++) {
+                for (uint32_t j = chunk_starts[cur_chunk]; j < chunk_starts[cur_chunk + 1]; j++) {
                     if (sub_chunk_zeroes == sub_chunk_target) {
                         // offset relative to the main chunk the sub chunk belongs to
                         sub_chunk_starts[cur_chunk].push_back(j - chunk_starts[cur_chunk]);
@@ -118,13 +118,13 @@ class SuccintBitVector : public BitVectorInterface {
                 }
                 sub_chunk_starts[cur_chunk].push_back(chunk_starts[cur_chunk + 1] - chunk_starts[cur_chunk]);
                 // process all sub chunks of the current main chunk
-                vector<uint64_t> &sub_chunks = sub_chunk_starts[cur_chunk];
-                for (uint64_t j = 1; j < sub_chunks.size(); j++) {
-                    uint64_t sub_chunk_size = sub_chunks[j] - sub_chunks[j - 1];
-                    uint64_t cur_sub_chunk = j - 1;
+                vector<uint32_t> &sub_chunks = sub_chunk_starts[cur_chunk];
+                for (uint32_t j = 1; j < sub_chunks.size(); j++) {
+                    uint32_t sub_chunk_size = sub_chunks[j] - sub_chunks[j - 1];
+                    uint32_t cur_sub_chunk = j - 1;
                     if (sub_chunk_size >= sub_sparse_threshold) {
                         // create lookup table for the current sub chunk
-                        for (uint64_t k = sub_chunks[cur_sub_chunk]; k < sub_chunks[cur_sub_chunk + 1]; k++) {
+                        for (uint32_t k = sub_chunks[cur_sub_chunk]; k < sub_chunks[cur_sub_chunk + 1]; k++) {
                             if (!input[k + chunk_starts[cur_chunk]]) {
                                 sub_sparse_lookup[cur_chunk][cur_sub_chunk].push_back(k - sub_chunks[cur_sub_chunk]);
                             }
@@ -133,13 +133,13 @@ class SuccintBitVector : public BitVectorInterface {
                             sub_sparse_lookup[cur_chunk][cur_sub_chunk].push_back(0);
                         }
                     } else {
-                        uint64_t sub_chunk_encoding = 1;
-                        for (uint64_t k = sub_chunks[cur_sub_chunk]; k < sub_chunks[cur_sub_chunk + 1]; k++) {
+                        uint32_t sub_chunk_encoding = 1;
+                        for (uint32_t k = sub_chunks[cur_sub_chunk]; k < sub_chunks[cur_sub_chunk + 1]; k++) {
                             sub_chunk_encoding += input[k + chunk_starts[cur_chunk]] ? 1 : 0;
                             sub_chunk_encoding <<= 1;
                         }
                         sub_dense_encodings[cur_chunk][cur_sub_chunk] = sub_chunk_encoding;
-                        for (uint64_t k = sub_chunks[cur_sub_chunk]; k < sub_chunks[cur_sub_chunk + 1]; k++) {
+                        for (uint32_t k = sub_chunks[cur_sub_chunk]; k < sub_chunks[cur_sub_chunk + 1]; k++) {
                             if (!input[k + chunk_starts[cur_chunk]]) {
                                 sub_dense_lookup[sub_chunk_encoding].push_back(k - sub_chunks[cur_sub_chunk]);
                             }
@@ -153,27 +153,27 @@ class SuccintBitVector : public BitVectorInterface {
         }
     }
 
-    // uint64_t rank(uint64_t x, uint64_t bit) {
-    //     uint64_t super_idx = x / super_block_size;
-    //     uint64_t block_idx = x / block_size;
-    //     uint64_t block_offset = x % block_size;
-    //     uint64_t zeroes = super_block[super_idx] + block[block_idx] + lookup[block_number[block_idx]][block_offset];
+    // uint32_t rank(uint32_t x, uint32_t bit) {
+    //     uint32_t super_idx = x / super_block_size;
+    //     uint32_t block_idx = x / block_size;
+    //     uint32_t block_offset = x % block_size;
+    //     uint32_t zeroes = super_block[super_idx] + block[block_idx] + lookup[block_number[block_idx]][block_offset];
     //     return bit ? x - zeroes : zeroes;
     // }
 
-    uint64_t select(uint64_t x) {
+    uint32_t select(uint32_t x) {
         x--;
         if (x >= total_zero_count) {
             return chunk_starts.back();
         }
-        uint64_t chunk_idx = x / chunk_target;
-        uint64_t chunk_offset = x % chunk_target;
+        uint32_t chunk_idx = x / chunk_target;
+        uint32_t chunk_offset = x % chunk_target;
         // check if the chunk is sparse:
         if (sparse_lookup.find(chunk_idx) != sparse_lookup.end()) {
             return sparse_lookup[chunk_idx][chunk_offset];
         } else {
-            uint64_t sub_chunk_idx = chunk_offset / sub_chunk_target;
-            uint64_t sub_chunk_offset = chunk_offset % sub_chunk_target;
+            uint32_t sub_chunk_idx = chunk_offset / sub_chunk_target;
+            uint32_t sub_chunk_offset = chunk_offset % sub_chunk_target;
             // check if the sub chunk is sparse
             if (sub_sparse_lookup.find(chunk_idx) != sub_sparse_lookup.end() &&
                 sub_sparse_lookup[chunk_idx].find(sub_chunk_idx) != sub_sparse_lookup[chunk_idx].end()) {
@@ -240,25 +240,25 @@ class SuccintBitVector : public BitVectorInterface {
     // unordered_map<uint64_t, vector<uint64_t>> lookup;
 
     // select variables
-    uint64_t chunk_target, sub_chunk_target;
-    uint64_t total_zero_count = 0;
-    vector<uint64_t> chunk_starts;
-    unordered_map<uint64_t, vector<uint64_t>> sparse_lookup, sub_chunk_starts, sub_dense_lookup;
-    unordered_map<uint64_t, unordered_map<uint64_t,vector<uint64_t>>> sub_sparse_lookup;
-    unordered_map<uint64_t, unordered_map<uint64_t, uint64_t>> sub_dense_encodings;
+    uint32_t chunk_target, sub_chunk_target;
+    uint32_t total_zero_count = 0;
+    vector<uint32_t> chunk_starts;
+    unordered_map<uint32_t, vector<uint32_t>> sparse_lookup, sub_chunk_starts, sub_dense_lookup;
+    unordered_map<uint32_t, unordered_map<uint32_t,vector<uint32_t>>> sub_sparse_lookup;
+    unordered_map<uint32_t, unordered_map<uint32_t, uint32_t>> sub_dense_encodings;
 };
 
 class NaiveBitVector : public BitVectorInterface {
     public:
     NaiveBitVector(vector<bool> &input) : v(input) {
-        for (uint64_t i = 0; i < input.size(); i++) {
+        for (uint32_t i = 0; i < input.size(); i++) {
             if (!input[i]) {
                 selects.push_back(i);
             }
         }
     }
 
-    uint64_t select(uint64_t x) {
+    uint32_t select(uint32_t x) {
         if (x > selects.size()) {
             // cout << "Query exceeds list\n";
             // throw invalid_argument("Query exceeds list");
@@ -279,7 +279,7 @@ class NaiveBitVector : public BitVectorInterface {
     }
 
     private:
-    vector<uint64_t> selects;
+    vector<uint32_t> selects;
     vector<bool> v;
 };
 
